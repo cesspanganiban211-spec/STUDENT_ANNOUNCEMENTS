@@ -172,6 +172,144 @@ class _HomeScreenState extends State<HomeScreen> {
       datePosted: DateTime.now().subtract(const Duration(days: 3)),
       postedBy: 'Administration',
     ),
+    Announcement(
+      id: '6',
+      title: 'Student Council Elections - Vote Now!',
+      description:
+          'Annual Student Council elections are open until Friday, October 10th at 5 PM. Cast your vote through the student portal. Candidates for President, Vice President, and Treasurer will present their platforms at the Town Hall meeting on Wednesday, October 8th, 3:00 PM at the Main Auditorium.',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(hours: 8)),
+      postedBy: 'Student Affairs Office',
+      isUrgent: true,
+    ),
+    Announcement(
+      id: '7',
+      title: 'Midterm Grades Released',
+      description:
+          'Midterm grades for all courses are now available on the student portal. Please review your grades and schedule office hours with your professors if you have concerns. The deadline to appeal grades is October 20th.',
+      category: 'General',
+      datePosted: DateTime.now().subtract(const Duration(hours: 12)),
+      postedBy: 'Registrar\'s Office',
+    ),
+    Announcement(
+      id: '8',
+      title: 'Chemistry Lab Safety Training',
+      description:
+          'Mandatory safety training for all students enrolled in Chemistry 201 and 201L. Sessions will be held on October 6th and 7th, 10:00 AM - 12:00 PM in Science Building Room 302. Attendance is required to continue lab work. Bring your student ID and lab coat.',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
+      postedBy: 'Chemistry Department',
+      isUrgent: true,
+    ),
+    Announcement(
+      id: '9',
+      title: 'English Essay Submission Deadline',
+      description:
+          'Reminder: The final draft of your argumentative essay (minimum 1,500 words) is due this Thursday, October 9th, by 11:59 PM via the online submission portal. Late submissions will receive a 10% penalty per day. Cite sources in MLA format.',
+      category: 'Assignment',
+      datePosted: DateTime.now().subtract(const Duration(days: 1, hours: 6)),
+      postedBy: 'Prof. Maria Santos',
+    ),
+    Announcement(
+      id: '10',
+      title: 'Campus Wi-Fi Maintenance',
+      description:
+          'The campus Wi-Fi network will be undergoing scheduled maintenance on Saturday, October 11th, from 2:00 AM to 6:00 AM. Internet access will be unavailable during this time. Plan accordingly for any online assignments or research.',
+      category: 'General',
+      datePosted: DateTime.now().subtract(const Duration(days: 2)),
+      postedBy: 'IT Services',
+    ),
+    Announcement(
+      id: '11',
+      title: 'Basketball Tryouts - Varsity Team',
+      description:
+          'Tryouts for the Varsity Basketball team will be held on October 14th and 15th, 4:00 PM - 6:30 PM at the Main Gymnasium. All students with a valid physical exam form are eligible to try out. Wear appropriate athletic gear.',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(days: 2, hours: 4)),
+      postedBy: 'Athletics Department',
+    ),
+    Announcement(
+      id: '12',
+      title: 'Tuition Payment Deadline - 2nd Installment',
+      description:
+          'The second installment of tuition fees for the Fall semester is due on October 15th. Payments can be made online through the student portal, at the Cashier\'s Office (Mon-Fri, 8 AM - 4 PM), or via bank transfer. Late payments will incur a 5% surcharge.',
+      category: 'General',
+      datePosted: DateTime.now().subtract(const Duration(days: 3, hours: 2)),
+      postedBy: 'Finance Office',
+      isUrgent: true,
+    ),
+    Announcement(
+      id: '13',
+      title: 'Halloween Costume Contest',
+      description:
+          'Get spooky! The annual Halloween Costume Contest will be held on October 31st at 6:00 PM in the Student Center. Prizes for Best Group Costume, Most Creative, and Scariest Costume. Registration is free - sign up at the Student Affairs Office by October 28th.',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(days: 4)),
+      postedBy: 'Student Activities Board',
+    ),
+    Announcement(
+      id: '14',
+      title: 'Physics Quiz 3 - Coverage and Review',
+      description:
+          'Physics Quiz 3 will cover Chapters 7-9 (Thermodynamics and Heat Transfer). The quiz is scheduled for Tuesday, October 14th, during your regular class period. A review session will be held on Monday, October 13th, 3:00 PM in Room 204.',
+      category: 'Exam',
+      datePosted: DateTime.now().subtract(const Duration(days: 4, hours: 5)),
+      postedBy: 'Dr. Robert Chen',
+    ),
+    Announcement(
+      id: '15',
+      title: 'Lost and Found - Student ID Cards',
+      description:
+          'Multiple student ID cards have been found near the Main Library and the Cafeteria. If you have lost your ID, please visit the Student Affairs Office (Room 101, Admin Building) with a valid government-issued ID to claim it. Unclaimed IDs will be deactivated after 30 days.',
+      category: 'General',
+      datePosted: DateTime.now().subtract(const Duration(days: 5)),
+      postedBy: 'Student Affairs Office',
+    ),
+    Announcement(
+      id: '16',
+      title: 'Art Exhibition: "Perspectives"',
+      description:
+          'The Fine Arts Department presents "Perspectives," an exhibition featuring works by senior students. Opening reception on October 18th, 5:00 PM at the Campus Gallery. The exhibition runs until November 2nd. Refreshments will be served. Free admission for all students.',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(days: 5, hours: 3)),
+      postedBy: 'Fine Arts Department',
+    ),
+    Announcement(
+      id: '17',
+      title: 'Math Tutoring Sessions - Free',
+      description:
+          'Free peer tutoring for Algebra, Calculus, and Statistics is available every Monday and Wednesday, 4:00 PM - 6:00 PM in the Math Learning Center (Room 112, Science Building). No registration needed - just drop in with your questions and materials.',
+      category: 'General',
+      datePosted: DateTime.now().subtract(const Duration(days: 6)),
+      postedBy: 'Math Department',
+    ),
+    Announcement(
+      id: '18',
+      title: 'Final Project Group Formation',
+      description:
+          'Reminder for CS 301 students: Final project groups of 3-4 members must be formed and registered on the course portal by October 12th. Project proposals are due October 22nd. See the course syllabus for project guidelines and requirements.',
+      category: 'Assignment',
+      datePosted: DateTime.now().subtract(const Duration(days: 6, hours: 7)),
+      postedBy: 'Prof. James Wilson',
+    ),
+    Announcement(
+      id: '19',
+      title: 'All Saints\' Day - No Classes',
+      description:
+          'There will be no classes on Monday, November 3rd in observance of All Saints\' Day. Offices will also be closed. Classes will resume on Tuesday, November 4th. Make sure to complete any pending assignments before the holiday.',
+      category: 'Holiday',
+      datePosted: DateTime.now().subtract(const Duration(days: 7)),
+      postedBy: 'Administration',
+    ),
+    Announcement(
+      id: '20',
+      title: 'Blood Donation Drive',
+      description:
+          'The Red Cross, in partnership with our school, will hold a Blood Donation Drive on October 22nd, 9:00 AM - 3:00 PM at the School Clinic. Donors must be at least 18 years old, weigh at least 50kg, and bring a valid ID. Refreshments provided for all donors. Save a life - donate blood!',
+      category: 'Event',
+      datePosted: DateTime.now().subtract(const Duration(days: 7, hours: 4)),
+      postedBy: 'School Clinic & Red Cross',
+    ),
   ];
 
   String _selectedFilter = 'All';
