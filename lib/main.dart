@@ -9,11 +9,14 @@ void main() {
   runApp(StudentAnnouncementsApp(home: initialScreen()));
 }
 
-/// Deep links for the web build — `?screen=detail` or `?screen=compose` open
-/// that screen directly, which is handy for sharing a link to a note and for
-/// grabbing screenshots of each screen.
+/// Deep links for the web build — `?screen=board`, `?screen=events`,
+/// `?screen=detail` or `?screen=compose` open that screen directly, which is
+/// handy for sharing a link and for grabbing screenshots of each screen.
 Widget? initialScreen() {
   switch (Uri.base.queryParameters['screen']) {
+    case 'events':
+      // The diary itself — app bar, summary strip and bottom navigation.
+      return const HomeScreen(initialTab: 1);
     case 'detail':
       return AnnouncementDetailScreen(
         announcement: Announcement(
@@ -26,6 +29,8 @@ Widget? initialScreen() {
           postedBy: 'Academic Office',
           isUrgent: true,
           eventDate: DateTime(2026, 10, 15, 8, 0),
+          venue: 'Exam Hall, Main Building',
+          expiresAt: DateTime(2026, 10, 16, 8, 0),
         ),
         onChanged: (_) {},
         onDeleted: () {},
@@ -753,7 +758,11 @@ class ExpiryPill extends StatelessWidget {
 // ==================== HOME SCREEN ====================
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.initialTab = 0});
+
+  /// Which bottom tab to open on — `?screen=events` jumps straight to the
+  /// diary (handy for sharing a link and for screenshots).
+  final int initialTab;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -763,6 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab;
     _loadNotes();
   }
 
@@ -1903,6 +1913,19 @@ class _EventsScreenState extends State<EventsScreen> {
   @override
   Widget build(BuildContext context) {
     final events = _events;
+    final now = DateTime.now();
+    final week = now.add(const Duration(days: 7));
+    final dated = widget.announcements
+        .where((a) => a.eventDate != null && !a.isExpired());
+
+    final upcoming = dated.where((a) => a.eventDate!.isAfter(now)).length;
+    final soon = dated
+        .where((a) => a.eventDate!.isAfter(now) && !a.eventDate!.isAfter(week))
+        .length;
+    final temporary = widget.announcements
+        .where((a) => a.isTemporary && !a.isExpired())
+        .length;
+    final past = dated.where((a) => a.eventDate!.isBefore(now)).length;
 
     return Stack(
       children: [
@@ -1911,6 +1934,45 @@ class _EventsScreenState extends State<EventsScreen> {
         ),
         Column(
           children: [
+            // At-a-glance summary of the whole diary.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _StatBox(
+                      label: 'UPCOMING',
+                      value: upcoming,
+                      color: Palette.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatBox(
+                      label: '7 DAYS',
+                      value: soon,
+                      color: const Color(0xFFD0872B),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatBox(
+                      label: 'TEMPORARY',
+                      value: temporary,
+                      color: const Color(0xFF7E5A9B),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatBox(
+                      label: 'PAST',
+                      value: past,
+                      color: const Color(0xFF4E8A5B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             // Tape tabs, same cut as the board's category tabs.
             SizedBox(
               height: 58,
@@ -1980,6 +2042,56 @@ class _EventsScreenState extends State<EventsScreen> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// One number on the diary's at-a-glance summary strip.
+class _StatBox extends StatelessWidget {
+  const _StatBox({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+      decoration: BoxDecoration(
+        color: Palette.walnut.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.55)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 20,
+              height: 1.1,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: TextStyle(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.7,
+              color: Palette.paper.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

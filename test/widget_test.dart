@@ -176,8 +176,11 @@ void main() {
     await tester.tap(find.text('Events'));
     await tester.pumpAndSettle();
 
-    expect(find.text('UPCOMING'), findsOneWidget);
-    expect(find.text('PAST'), findsOneWidget);
+    expect(find.byKey(const ValueKey('events-upcoming')), findsOneWidget);
+    expect(find.byKey(const ValueKey('events-past')), findsOneWidget);
+    // The summary strip counts what is on the diary.
+    expect(find.text('UPCOMING'), findsWidgets);
+    expect(find.text('TEMPORARY'), findsWidgets);
 
     await tester.scrollUntilVisible(
       find.text('Annual Science Fair 2026'),
@@ -237,7 +240,7 @@ void main() {
           eventDate: DateTime.now().add(const Duration(days: 3)),
           venue: 'Main Hall',
           expiresAt: expiresAt,
-      );
+        );
 
     await tester.pumpWidget(StudentAnnouncementsApp(
       home: EventsScreen(
