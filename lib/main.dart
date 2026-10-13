@@ -594,6 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'General',
       datePosted: DateTime.now().subtract(const Duration(hours: 12)),
       postedBy: 'Registrar\'s Office',
+      eventDate: DateTime(2026, 10, 20),
     ),
     Announcement(
       id: '8',
@@ -631,6 +632,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 2, hours: 4)),
       postedBy: 'Athletics Department',
+      eventDate: DateTime(2026, 10, 14, 16),
     ),
     Announcement(
       id: '12',
@@ -641,6 +643,7 @@ class _HomeScreenState extends State<HomeScreen> {
       datePosted: DateTime.now().subtract(const Duration(days: 3, hours: 2)),
       postedBy: 'Finance Office',
       isUrgent: true,
+      eventDate: DateTime(2026, 10, 15),
     ),
     Announcement(
       id: '13',
@@ -650,6 +653,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 4)),
       postedBy: 'Student Activities Board',
+      eventDate: DateTime(2026, 10, 31, 18),
     ),
     Announcement(
       id: '14',
@@ -659,6 +663,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Exam',
       datePosted: DateTime.now().subtract(const Duration(days: 4, hours: 5)),
       postedBy: 'Dr. Robert Chen',
+      eventDate: DateTime(2026, 10, 14, 8),
     ),
     Announcement(
       id: '15',
@@ -677,6 +682,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 5, hours: 3)),
       postedBy: 'Fine Arts Department',
+      eventDate: DateTime(2026, 10, 18, 17),
     ),
     Announcement(
       id: '17',
@@ -704,6 +710,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Holiday',
       datePosted: DateTime.now().subtract(const Duration(days: 7)),
       postedBy: 'Administration',
+      eventDate: DateTime(2026, 11, 3),
     ),
     Announcement(
       id: '20',
@@ -713,6 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 7, hours: 4)),
       postedBy: 'School Clinic & Red Cross',
+      eventDate: DateTime(2026, 10, 22, 9),
     ),
   ];
 
