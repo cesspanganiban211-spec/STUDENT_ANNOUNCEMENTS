@@ -1,11 +1,29 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 void main() {
   runApp(const StudentAnnouncementsApp());
 }
 
+// ==================== THEME / PALETTE ====================
+
+abstract final class Palette {
+  static const Color cork = Color(0xFFC08B52);
+  static const Color corkDark = Color(0xFF9B6A33);
+  static const Color corkLight = Color(0xFFDDB073);
+  static const Color paper = Color(0xFFFCF6E7);
+  static const Color ink = Color(0xFF2C2620);
+  static const Color inkSoft = Color(0xFF7B6F61);
+  static const Color walnut = Color(0xFF33281C);
+  static const Color stamp = Color(0xFFC1402C);
+}
+
 class StudentAnnouncementsApp extends StatelessWidget {
-  const StudentAnnouncementsApp({super.key});
+  const StudentAnnouncementsApp({super.key, this.home});
+
+  /// Lets tests and previews jump straight to a screen with the app's theme.
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -13,17 +31,42 @@ class StudentAnnouncementsApp extends StatelessWidget {
       title: 'Student Announcements',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
+          seedColor: Palette.stamp,
           brightness: Brightness.light,
         ),
-        useMaterial3: true,
+        scaffoldBackgroundColor: Palette.cork,
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,
+          backgroundColor: Palette.walnut,
+          foregroundColor: Palette.paper,
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Palette.walnut,
+          contentTextStyle: TextStyle(color: Palette.paper, fontSize: 14),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.55),
+          labelStyle: const TextStyle(color: Palette.inkSoft),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Palette.ink.withValues(alpha: 0.25)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Palette.ink.withValues(alpha: 0.25)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Palette.stamp, width: 2),
+          ),
         ),
       ),
-      home: const HomeScreen(),
+      home: home ?? const HomeScreen(),
     );
   }
 }
@@ -39,6 +82,9 @@ class Announcement {
   final String postedBy;
   final bool isUrgent;
 
+  /// When the announcement happens or is due (optional).
+  final DateTime? eventDate;
+
   Announcement({
     required this.id,
     required this.title,
@@ -47,72 +93,426 @@ class Announcement {
     required this.datePosted,
     required this.postedBy,
     this.isUrgent = false,
+    this.eventDate,
   });
 }
 
-// ==================== HELPER FUNCTIONS ====================
+// ==================== HELPERS ====================
 
-String _formatDate(DateTime date) {
-  final months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+({Color color, IconData icon}) categoryStyle(String category) {
+  switch (category.toLowerCase()) {
+    case 'event':
+      return (color: const Color(0xFF7E5A9B), icon: Icons.event);
+    case 'exam':
+      return (color: const Color(0xFFB8412F), icon: Icons.quiz);
+    case 'assignment':
+      return (color: const Color(0xFFD0872B), icon: Icons.assignment);
+    case 'holiday':
+      return (color: const Color(0xFF4E8A5B), icon: Icons.beach_access);
+    case 'general':
+    default:
+      return (color: const Color(0xFF2E7C8C), icon: Icons.campaign);
+  }
+}
+
+Color categoryColor(String category) => categoryStyle(category).color;
+
+/// Each note gets a tiny, deterministic tilt so the board looks hand-pinned.
+double tiltFor(String id) {
+  final slot = (id.hashCode % 7).abs() - 3; // -3..3
+  return slot * 0.0055; // about +/- 0.95 degrees
+}
+
+String formatDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final month = months[date.month - 1];
   final day = date.day.toString().padLeft(2, '0');
-  final year = date.year;
-  final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+  final hour =
+      date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
   final minute = date.minute.toString().padLeft(2, '0');
   final period = date.hour >= 12 ? 'PM' : 'AM';
-  return '$month $day, $year - $hour:$minute $period';
+  return '$month $day, ${date.year} - $hour:$minute $period';
 }
 
-String _formatDateLong(DateTime date) {
-  final days = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-    'Friday', 'Saturday', 'Sunday'
+String formatDateLong(DateTime date) {
+  const days = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
   ];
-  final months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
   final day = days[date.weekday - 1];
   final month = months[date.month - 1];
-  final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+  final hour =
+      date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
   final minute = date.minute.toString().padLeft(2, '0');
   final period = date.hour >= 12 ? 'PM' : 'AM';
   return '$day, $month ${date.day}, ${date.year} - $hour:$minute $period';
 }
 
-Color _getCategoryColor(String category) {
-  switch (category.toLowerCase()) {
-    case 'event':
-      return Colors.purple;
-    case 'exam':
-      return Colors.red;
-    case 'assignment':
-      return Colors.orange;
-    case 'holiday':
-      return Colors.green;
-    case 'general':
-    default:
-      return Colors.blue;
-  }
+String timeAgo(DateTime date) {
+  final diff = DateTime.now().difference(date);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inHours < 1) return '${diff.inMinutes} min ago';
+  if (diff.inDays < 1) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return formatDate(date);
 }
 
-IconData _getCategoryIcon(String category) {
-  switch (category.toLowerCase()) {
-    case 'event':
-      return Icons.event;
-    case 'exam':
-      return Icons.quiz;
-    case 'assignment':
-      return Icons.assignment;
-    case 'holiday':
-      return Icons.beach_access;
-    case 'general':
-    default:
-      return Icons.campaign;
+/// Short, date-only stamp: "Oct 15, 2026".
+String shortDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[date.month - 1]} ${date.day}, ${date.year}';
+}
+
+/// A date [days] away from today, at a given clock time (for sample data).
+DateTime daysFromNow(int days, {int hour = 9, int minute = 0}) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day + days, hour, minute);
+}
+
+/// How far away [when] is, counted by calendar days: label + day count.
+({int days, String label}) whenInfo(DateTime when) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(when.year, when.month, when.day);
+  final days = target.difference(today).inDays;
+
+  final String label;
+  if (days == 0) {
+    label = when.hour == 0 && when.minute == 0
+        ? 'Today'
+        : 'Today \u00b7 ${_clock(when)}';
+  } else if (days == 1) {
+    label = 'Tomorrow \u00b7 ${_clock(when)}';
+  } else if (days == -1) {
+    label = 'Yesterday';
+  } else if (days > 1) {
+    label = 'In $days days';
+  } else {
+    label = '${-days} days ago';
   }
+  return (days: days, label: label);
+}
+
+String _clock(DateTime date) {
+  final hour =
+      date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+  final minute = date.minute.toString().padLeft(2, '0');
+  final period = date.hour >= 12 ? 'PM' : 'AM';
+  return '$hour:$minute $period';
+}
+
+/// Countdown pill colours: overdue = grey, soon = red, this week = amber.
+Color whenColor(int days) {
+  if (days < 0) return Palette.inkSoft;
+  if (days <= 2) return Palette.stamp;
+  if (days <= 7) return const Color(0xFFD0872B);
+  return const Color(0xFF4E8A5B);
+}
+
+String boardDate(DateTime date) {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${days[date.weekday % 7]}, ${months[date.month - 1]} ${date.day}';
+}
+
+// ==================== PAINTERS ====================
+
+/// Hand-scattered cork texture for the board background.
+class CorkboardPainter extends CustomPainter {
+  const CorkboardPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bounds = Offset.zero & size;
+    canvas.drawRect(bounds, Paint()..color = Palette.cork);
+
+    final random = math.Random(20261008);
+    final dark = Paint()
+      ..color = Palette.corkDark.withValues(alpha: 0.55)
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round;
+    final light = Paint()
+      ..color = Palette.corkLight.withValues(alpha: 0.55)
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round;
+
+    const speckles = 1100;
+    for (var i = 0; i < speckles; i++) {
+      final x = random.nextDouble() * size.width;
+      final y = random.nextDouble() * size.height;
+      final angle = random.nextDouble() * math.pi;
+      final length = 3 + random.nextDouble() * 7;
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x + math.cos(angle) * length, y + math.sin(angle) * length),
+        random.nextBool() ? dark : light,
+      );
+    }
+
+    // Soft vignette so the middle of the board feels lit.
+    final vignette = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.10),
+          Colors.black.withValues(alpha: 0.22),
+        ],
+        stops: const [0.45, 1],
+      ).createShader(bounds);
+    canvas.drawRect(bounds, vignette);
+  }
+
+  @override
+  bool shouldRepaint(covariant CorkboardPainter oldDelegate) => false;
+}
+
+/// Little triangle bunting hanging under the app bar.
+class BuntingPainter extends CustomPainter {
+  const BuntingPainter();
+
+  static const List<Color> _flagColors = [
+    Color(0xFFE4572E),
+    Color(0xFFF3A712),
+    Color(0xFF43AA8B),
+    Color(0xFF5B8DEF),
+    Color(0xFFB15CE6),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const p0 = Offset(0, 3);
+    final p1 = Offset(size.width / 2, 17);
+    final p2 = Offset(size.width, 3);
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(p0.dx, p0.dy)
+        ..quadraticBezierTo(p1.dx, p1.dy, p2.dx, p2.dy),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    const flagCount = 14;
+    final fill = Paint();
+    for (var i = 0; i < flagCount; i++) {
+      final t = (i + 0.5) / flagCount;
+      final a = (1 - t) * (1 - t);
+      final b = 2 * (1 - t) * t;
+      final c = t * t;
+      final point = Offset(
+        a * p0.dx + b * p1.dx + c * p2.dx,
+        a * p0.dy + b * p1.dy + c * p2.dy,
+      );
+      final tangent = Offset(
+        2 * (1 - t) * (p1.dx - p0.dx) + 2 * t * (p2.dx - p1.dx),
+        2 * (1 - t) * (p1.dy - p0.dy) + 2 * t * (p2.dy - p1.dy),
+      );
+      final normal = Offset(-tangent.dy, tangent.dx) / tangent.distance;
+      final left = point + normal * 8;
+      final right = point - normal * 8;
+      final bottom = point + const Offset(0, 17);
+
+      final flag = Path()
+        ..moveTo(left.dx, left.dy)
+        ..lineTo(right.dx, right.dy)
+        ..lineTo(bottom.dx, bottom.dy)
+        ..close();
+      fill.color = _flagColors[i % _flagColors.length];
+      canvas.drawPath(flag, fill);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BuntingPainter oldDelegate) => false;
+}
+
+/// Wavy, hand-drawn underline used on the detail sheet.
+class SquigglePainter extends CustomPainter {
+  const SquigglePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()..moveTo(0, size.height / 2);
+    var x = 0.0;
+    var up = true;
+    while (x < size.width) {
+      final next = math.min(size.width, x + 14);
+      path.quadraticBezierTo(
+        x + 7,
+        up ? 0 : size.height,
+        next,
+        size.height / 2,
+      );
+      x = next;
+      up = !up;
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant SquigglePainter old) => old.color != color;
+}
+
+/// Paper note silhouette with a torn bottom edge (shadow follows the shape).
+class DeckleClipper extends CustomClipper<Path> {
+  const DeckleClipper({this.depth = 8, this.step = 16});
+
+  final double depth;
+  final double step;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height);
+
+    var x = size.width;
+    var up = true;
+    while (x > 0) {
+      final next = math.max(0.0, x - step);
+      path.lineTo(next, up ? size.height - depth : size.height);
+      up = !up;
+      x = next;
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant DeckleClipper oldClip) => false;
+}
+
+// ==================== SHARED BITS ====================
+
+/// The strip of coloured tape that doubles as the category label.
+Widget categoryTape(String category, {double angle = -0.03}) {
+  final style = categoryStyle(category);
+  return Transform.rotate(
+    angle: angle,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: style.color.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(style.icon, size: 13, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            category.toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.6,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Rubber-stamped "urgent" mark, slightly askew.
+Widget urgentStamp({double angle = -0.11, double fontSize = 12}) {
+  return Transform.rotate(
+    angle: angle,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: Palette.stamp, width: 2),
+        borderRadius: BorderRadius.circular(4),
+        color: Palette.stamp.withValues(alpha: 0.07),
+      ),
+      child: Text(
+        'URGENT',
+        style: TextStyle(
+          color: Palette.stamp,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 2.5,
+        ),
+      ),
+    ),
+  );
 }
 
 // ==================== HOME SCREEN ====================
@@ -135,6 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
       datePosted: DateTime.now().subtract(const Duration(hours: 2)),
       postedBy: 'Academic Office',
       isUrgent: true,
+      eventDate: daysFromNow(5, hour: 8),
     ),
     Announcement(
       id: '2',
@@ -144,6 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(hours: 5)),
       postedBy: 'Science Department',
+      eventDate: daysFromNow(12, hour: 8),
     ),
     Announcement(
       id: '3',
@@ -162,6 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Assignment',
       datePosted: DateTime.now().subtract(const Duration(days: 2)),
       postedBy: 'Prof. Johnson',
+      eventDate: daysFromNow(2, hour: 23, minute: 59),
     ),
     Announcement(
       id: '5',
@@ -171,6 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Holiday',
       datePosted: DateTime.now().subtract(const Duration(days: 3)),
       postedBy: 'Administration',
+      eventDate: daysFromNow(30, hour: 8),
     ),
     Announcement(
       id: '6',
@@ -313,7 +717,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   String _selectedFilter = 'All';
-  final List<String> _filters = [
+  final List<String> _filters = const [
     'All',
     'Event',
     'Exam',
@@ -330,7 +734,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _navigateToCreateAnnouncement() async {
     final result = await Navigator.push<Announcement>(
       context,
-      MaterialPageRoute(builder: (context) => const CreateAnnouncementScreen()),
+      MaterialPageRoute(
+        builder: (context) => const CreateAnnouncementScreen(),
+      ),
     );
     if (result != null) {
       setState(() {
@@ -343,197 +749,442 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AnnouncementDetailScreen(announcement: announcement),
+        builder: (context) =>
+            AnnouncementDetailScreen(announcement: announcement),
       ),
     );
   }
 
+  Color _filterColor(String filter) =>
+      filter == 'All' ? const Color(0xFFE2A33B) : categoryColor(filter);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Palette.cork,
       appBar: AppBar(
-        title: const Text(
-          'Student Announcements',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _filters.map((filter) {
-                  final isSelected = _selectedFilter == filter;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(filter),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedFilter = filter;
-                        });
-                      },
-                      selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                      checkmarkColor: Theme.of(context).colorScheme.primary,
-                    ),
-                  );
-                }).toList(),
+        title: Column(
+          children: [
+            const Text(
+              'THE CAMPUS BULLETIN',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 3,
+                color: Palette.paper,
               ),
             ),
+            const SizedBox(height: 3),
+            Text(
+              '${_announcements.length} notes pinned \u00b7 ${boardDate(DateTime.now())}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.6,
+                color: Palette.paper.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(painter: CorkboardPainter()),
           ),
-          Expanded(
-            child: _filteredAnnouncements.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.campaign_outlined, size: 64, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No announcements found',
-                          style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+          Column(
+            children: [
+              // Bunting hanging off the top of the board.
+              const SizedBox(
+                height: 40,
+                child: CustomPaint(
+                  size: Size(double.infinity, 40),
+                  painter: BuntingPainter(),
+                ),
+              ),
+              // Washi-tape filter tabs.
+              SizedBox(
+                height: 58,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  children: [
+                    for (var i = 0; i < _filters.length; i++)
+                      _TapeTab(
+                        key: ValueKey(_filters[i]),
+                        label: _filters[i],
+                        color: _filterColor(_filters[i]),
+                        selected: _selectedFilter == _filters[i],
+                        angle: i.isEven ? -0.035 : 0.03,
+                        onTap: () =>
+                            setState(() => _selectedFilter = _filters[i]),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _filteredAnnouncements.isEmpty
+                    ? _EmptyBoard(filter: _selectedFilter)
+                    : RefreshIndicator(
+                        color: Palette.stamp,
+                        backgroundColor: Palette.paper,
+                        onRefresh: () async {
+                          setState(() {});
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(top: 8, bottom: 96),
+                          itemCount: _filteredAnnouncements.length,
+                          itemBuilder: (context, index) {
+                            final announcement = _filteredAnnouncements[index];
+                            return _AnnouncementCard(
+                              key: ValueKey(
+                                  '${_selectedFilter}_${announcement.id}'),
+                              announcement: announcement,
+                              index: index,
+                              onTap: () => _navigateToDetail(announcement),
+                            );
+                          },
                         ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () async {
-                      setState(() {});
-                    },
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 80),
-                      itemCount: _filteredAnnouncements.length,
-                      itemBuilder: (context, index) {
-                        final announcement = _filteredAnnouncements[index];
-                        return _AnnouncementCard(
-                          announcement: announcement,
-                          onTap: () => _navigateToDetail(announcement),
-                        );
-                      },
-                    ),
-                  ),
+                      ),
+              ),
+            ],
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToCreateAnnouncement,
-        icon: const Icon(Icons.add),
-        label: const Text('New Announcement'),
+        backgroundColor: Palette.stamp,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        icon: const Icon(Icons.push_pin_outlined),
+        label: const Text(
+          'Pin a note',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4),
+        ),
       ),
     );
   }
 }
 
-// ==================== ANNOUNCEMENT CARD WIDGET ====================
+// ==================== TAPE TAB ====================
 
-class _AnnouncementCard extends StatelessWidget {
-  final Announcement announcement;
-  final VoidCallback? onTap;
+class _TapeTab extends StatelessWidget {
+  const _TapeTab({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.angle,
+    required this.onTap,
+  });
 
-  const _AnnouncementCard({required this.announcement, this.onTap});
+  final String label;
+  final Color color;
+  final bool selected;
+  final double angle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final categoryColor = _getCategoryColor(announcement.category);
-    final categoryIcon = _getCategoryIcon(announcement.category);
+    final tapeColor = selected ? color : color.withValues(alpha: 0.55);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: categoryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: categoryColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(categoryIcon, size: 14, color: categoryColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          announcement.category,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: categoryColor,
-                          ),
-                        ),
-                      ],
-                    ),
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Transform.rotate(
+        angle: angle,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(3),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: tapeColor,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.6)
+                      : Colors.white.withValues(alpha: 0.3),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        Colors.black.withValues(alpha: selected ? 0.28 : 0.14),
+                    blurRadius: selected ? 5 : 2,
+                    offset: const Offset(0, 2),
                   ),
-                  const Spacer(),
-                  if (announcement.isUrgent)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+                ],
+              ),
+              child: Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                  letterSpacing: 1.4,
+                  color: selected ? Colors.white : Palette.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleStrip extends StatelessWidget {
+  const _ScheduleStrip({required this.date});
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = whenInfo(date);
+    final color = whenColor(info.days);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.event_available, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              formatDate(date),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Palette.ink,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              info.label,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== EMPTY STATE ====================
+
+class _EmptyBoard extends StatelessWidget {
+  const _EmptyBoard({required this.filter});
+
+  final String filter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Transform.rotate(
+        angle: -0.02,
+        child: Container(
+          width: 240,
+          padding: const EdgeInsets.fromLTRB(24, 30, 24, 30),
+          decoration: BoxDecoration(
+            color: Palette.paper.withValues(alpha: 0.92),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.push_pin_outlined,
+                  size: 40, color: Palette.stamp),
+              const SizedBox(height: 12),
+              const Text(
+                'Nothing pinned here',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Palette.ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'No "$filter" notes on the board right now.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: Palette.inkSoft),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== ANNOUNCEMENT CARD (A PINNED NOTE) ====================
+
+class _AnnouncementCard extends StatelessWidget {
+  const _AnnouncementCard({
+    super.key,
+    required this.announcement,
+    required this.index,
+    this.onTap,
+  });
+
+  final Announcement announcement;
+  final int index;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = categoryStyle(announcement.category);
+
+    // Staggered entrance: each note drops onto the board a beat after the last.
+    final delay = (index * 0.09).clamp(0.0, 0.55);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 650),
+        curve: Interval(delay, 1, curve: Curves.easeOutCubic),
+        builder: (context, t, child) => Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 26 * (1 - t)),
+            child: child,
+          ),
+        ),
+        child: Transform.rotate(
+          angle: tiltFor(announcement.id),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              PhysicalShape(
+                clipper: const DeckleClipper(),
+                elevation: 6,
+                shadowColor: Colors.black.withValues(alpha: 0.45),
+                color: Palette.paper,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    highlightColor: style.color.withValues(alpha: 0.12),
+                    splashColor: style.color.withValues(alpha: 0.2),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.priority_high, size: 12, color: Colors.white),
-                          SizedBox(width: 4),
+                          if (announcement.isUrgent) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [urgentStamp()],
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           Text(
-                            'URGENT',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                            announcement.title,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: Palette.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            announcement.description,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.45,
+                              color: Palette.inkSoft,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (announcement.eventDate != null) ...[
+                            const SizedBox(height: 14),
+                            _ScheduleStrip(date: announcement.eventDate!),
+                          ],
+                          const SizedBox(height: 16),
+                          Container(
+                              height: 1,
+                              color: Palette.ink.withValues(alpha: 0.12)),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: Palette.inkSoft,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  announcement.postedBy,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Palette.ink,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const Icon(
+                                Icons.watch_later_outlined,
+                                size: 14,
+                                color: Palette.inkSoft,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                timeAgo(announcement.datePosted),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Palette.inkSoft,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Posted on ${formatDate(announcement.datePosted)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Palette.inkSoft,
                             ),
                           ),
                         ],
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                announcement.title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                announcement.description,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.person_outline, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text(
-                    announcement.postedBy,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
-                  const SizedBox(width: 16),
-                  Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDate(announcement.datePosted),
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                  ),
-                ],
+                ),
+              ),
+              // Category tape holding the note to the board.
+              Positioned(
+                top: -10,
+                left: 0,
+                right: 0,
+                child: Center(child: categoryTape(announcement.category)),
               ),
             ],
           ),
@@ -549,7 +1200,8 @@ class CreateAnnouncementScreen extends StatefulWidget {
   const CreateAnnouncementScreen({super.key});
 
   @override
-  State<CreateAnnouncementScreen> createState() => _CreateAnnouncementScreenState();
+  State<CreateAnnouncementScreen> createState() =>
+      _CreateAnnouncementScreenState();
 }
 
 class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
@@ -559,8 +1211,16 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _postedByController = TextEditingController();
   String _selectedCategory = 'General';
   bool _isUrgent = false;
+  DateTime? _eventDate;
+  TimeOfDay _eventTime = const TimeOfDay(hour: 9, minute: 0);
 
-  final List<String> _categories = ['General', 'Event', 'Exam', 'Assignment', 'Holiday'];
+  final List<String> _categories = const [
+    'General',
+    'Event',
+    'Exam',
+    'Assignment',
+    'Holiday',
+  ];
 
   @override
   void dispose() {
@@ -568,6 +1228,30 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     _descriptionController.dispose();
     _postedByController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickEventDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _eventDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+    );
+    if (picked != null) {
+      setState(() {
+        _eventDate = DateTime(picked.year, picked.month, picked.day);
+      });
+    }
+  }
+
+  Future<void> _pickEventTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _eventTime,
+    );
+    if (picked != null) {
+      setState(() => _eventTime = picked);
+    }
   }
 
   void _submitAnnouncement() {
@@ -580,12 +1264,21 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         datePosted: DateTime.now(),
         postedBy: _postedByController.text.trim(),
         isUrgent: _isUrgent,
+        eventDate: _eventDate == null
+            ? null
+            : DateTime(
+                _eventDate!.year,
+                _eventDate!.month,
+                _eventDate!.day,
+                _eventTime.hour,
+                _eventTime.minute,
+              ),
       );
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context, announcement);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
-          content: Text('Announcement created successfully!'),
-          backgroundColor: Colors.green,
+          content: Text('Your note is pinned to the board!'),
         ),
       );
     }
@@ -594,94 +1287,481 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Announcement', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      backgroundColor: Palette.cork,
+      appBar: AppBar(title: const Text('PIN A NEW NOTE')),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+              child: CustomPaint(painter: CorkboardPainter())),
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                PhysicalShape(
+                  clipper: const DeckleClipper(),
+                  elevation: 8,
+                  shadowColor: Colors.black.withValues(alpha: 0.45),
+                  color: Palette.paper,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 30, 22, 30),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Fresh off the press',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          TextFormField(
+                            controller: _titleController,
+                            decoration: const InputDecoration(
+                              labelText: 'Title',
+                              hintText: 'What is this about?',
+                              prefixIcon: Icon(Icons.title),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a title';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              prefixIcon: Icon(Icons.category),
+                            ),
+                            items: _categories
+                                .map((c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(c),
+                                    ))
+                                .toList(),
+                            onChanged: (value) =>
+                                setState(() => _selectedCategory = value!),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: const InputDecoration(
+                              labelText: 'Description',
+                              hintText: 'Write the details of your note',
+                              prefixIcon: Icon(Icons.description),
+                              alignLabelWithHint: true,
+                            ),
+                            maxLines: 5,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a description';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _postedByController,
+                            decoration: const InputDecoration(
+                              labelText: 'Posted By',
+                              hintText: 'Your name or department',
+                              prefixIcon: Icon(Icons.person),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter the author name';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'WHEN DOES IT HAPPEN?',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Optional \u2014 leave it empty for notices with no date',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _pickEventDate,
+                                  icon: const Icon(Icons.calendar_today,
+                                      size: 15),
+                                  label: Text(
+                                    _eventDate == null
+                                        ? 'Pick a date'
+                                        : shortDate(_eventDate!),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Palette.ink,
+                                    side: BorderSide(
+                                      color: Palette.ink.withValues(alpha: 0.3),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _pickEventTime,
+                                  icon: const Icon(Icons.schedule, size: 15),
+                                  label: Text(_eventTime.format(context)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Palette.ink,
+                                    side: BorderSide(
+                                      color: Palette.ink.withValues(alpha: 0.3),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_eventDate != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event_available,
+                                      size: 16, color: Palette.stamp),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '${shortDate(_eventDate!)} \u00b7 ${_eventTime.format(context)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Palette.ink,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(Icons.close, size: 18),
+                                    color: Palette.inkSoft,
+                                    tooltip: 'Clear date',
+                                    onPressed: () =>
+                                        setState(() => _eventDate = null),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: _isUrgent
+                                  ? Palette.stamp.withValues(alpha: 0.08)
+                                  : Palette.ink.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isUrgent
+                                    ? Palette.stamp.withValues(alpha: 0.5)
+                                    : Palette.ink.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                title: const Text(
+                                  'Stamp it as urgent',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Palette.ink,
+                                  ),
+                                ),
+                                subtitle: const Text(
+                                  'Adds a red stamp so nobody misses it',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Palette.inkSoft,
+                                  ),
+                                ),
+                                value: _isUrgent,
+                                activeThumbColor: Palette.stamp,
+                                onChanged: (value) =>
+                                    setState(() => _isUrgent = value),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 26),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              onPressed: _submitAnnouncement,
+                              icon: const Icon(Icons.push_pin_outlined),
+                              label: const Text(
+                                'Pin it to the board',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Palette.stamp,
+                                foregroundColor: Colors.white,
+                                elevation: 4,
+                                shadowColor:
+                                    Palette.stamp.withValues(alpha: 0.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -10,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: categoryTape(_selectedCategory, angle: 0.04),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+// ==================== ANNOUNCEMENT DETAIL SCREEN ====================
+
+class AnnouncementDetailScreen extends StatelessWidget {
+  const AnnouncementDetailScreen({super.key, required this.announcement});
+
+  final Announcement announcement;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = categoryStyle(announcement.category);
+
+    return Scaffold(
+      backgroundColor: Palette.cork,
+      appBar: AppBar(title: const Text('THE NOTE')),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(painter: CorkboardPainter()),
+          ),
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                PhysicalShape(
+                  clipper: const DeckleClipper(),
+                  elevation: 10,
+                  shadowColor: Colors.black.withValues(alpha: 0.5),
+                  color: Palette.paper,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 34, 24, 34),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            categoryTape(announcement.category, angle: 0),
+                            const Spacer(),
+                            if (announcement.isUrgent)
+                              urgentStamp(fontSize: 11),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          announcement.title,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            height: 1.2,
+                            fontWeight: FontWeight.w900,
+                            color: Palette.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 10,
+                          width: double.infinity,
+                          child: CustomPaint(
+                            size: const Size(double.infinity, 10),
+                            painter: SquigglePainter(color: style.color),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        if (announcement.eventDate != null) ...[
+                          const Text(
+                            'HAPPENS ON',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.6,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _ScheduleStrip(date: announcement.eventDate!),
+                          const SizedBox(height: 16),
+                        ],
+                        _MetaRow(
+                          icon: Icons.person_outline,
+                          label: 'PINNED BY',
+                          value: announcement.postedBy,
+                        ),
+                        const SizedBox(height: 14),
+                        _MetaRow(
+                          icon: Icons.watch_later_outlined,
+                          label: 'POSTED',
+                          value: formatDateLong(announcement.datePosted),
+                        ),
+                        const SizedBox(height: 22),
+                        Container(
+                            height: 1,
+                            color: Palette.ink.withValues(alpha: 0.12)),
+                        const SizedBox(height: 18),
+                        const Text(
+                          'THE FULL NOTE',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 3,
+                            color: Palette.inkSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          announcement.description,
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            height: 1.7,
+                            color: Palette.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (announcement.isUrgent)
+                  Positioned(
+                    top: -10,
+                    right: 24,
+                    child: Transform.rotate(
+                      angle: 0.06,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Palette.stamp,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'PRIORITY',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          decoration: BoxDecoration(
+            color: Palette.walnut,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Row(
             children: [
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  hintText: 'Enter announcement title',
-                  prefixIcon: Icon(Icons.title),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Please enter a title';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  prefixIcon: Icon(Icons.category),
-                  border: OutlineInputBorder(),
-                ),
-                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (value) => setState(() => _selectedCategory = value!),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Enter announcement details',
-                  prefixIcon: Icon(Icons.description),
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 5,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Please enter a description';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _postedByController,
-                decoration: const InputDecoration(
-                  labelText: 'Posted By',
-                  hintText: 'Enter your name or department',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Please enter the author name';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: SwitchListTile(
-                  title: const Text('Mark as Urgent'),
-                  subtitle: const Text('Urgent announcements will be highlighted'),
-                  value: _isUrgent,
-                  onChanged: (value) => setState(() => _isUrgent = value),
-                  secondary: Icon(
-                    Icons.priority_high,
-                    color: _isUrgent ? Colors.red : Colors.grey,
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Shared with your class!')),
+                    );
+                  },
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Share'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Palette.paper,
+                    side: BorderSide(
+                      color: Palette.paper.withValues(alpha: 0.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _submitAnnouncement,
-                  icon: const Icon(Icons.send),
-                  label: const Text('Publish Announcement', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tucked into your pocket!')),
+                    );
+                  },
+                  icon: const Icon(Icons.bookmark_border, size: 18),
+                  label: const Text('Save'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Palette.paper,
+                    side: BorderSide(
+                      color: Palette.paper.withValues(alpha: 0.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
                   ),
                 ),
               ),
@@ -693,195 +1773,50 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   }
 }
 
-// ==================== ANNOUNCEMENT DETAIL SCREEN ====================
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
-class AnnouncementDetailScreen extends StatelessWidget {
-  final Announcement announcement;
-
-  const AnnouncementDetailScreen({super.key, required this.announcement});
+  final IconData icon;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    final categoryColor = _getCategoryColor(announcement.category);
-    final categoryIcon = _getCategoryIcon(announcement.category);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Announcement', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: categoryColor.withOpacity(0.1),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Palette.inkSoft),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                  color: Palette.inkSoft,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: categoryColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(categoryIcon, color: categoryColor, size: 28),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: categoryColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                announcement.category.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            if (announcement.isUrgent) ...[
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.priority_high, size: 12, color: Colors.white),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'URGENT',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        letterSpacing: 1,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    announcement.title,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.3),
-                  ),
-                ],
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Palette.ink,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.person_outline, size: 20, color: Colors.grey[600]),
-                              const SizedBox(width: 8),
-                              Text('Posted by ', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                              Text(
-                                announcement.postedBy,
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Icon(Icons.access_time, size: 20, color: Colors.grey[600]),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _formatDateLong(announcement.datePosted),
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text('Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(
-                    announcement.description,
-                    style: const TextStyle(fontSize: 16, height: 1.6),
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Shared successfully!')),
-                            );
-                          },
-                          icon: const Icon(Icons.share),
-                          label: const Text('Share'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Saved to bookmarks!')),
-                            );
-                          },
-                          icon: const Icon(Icons.bookmark_border),
-                          label: const Text('Save'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

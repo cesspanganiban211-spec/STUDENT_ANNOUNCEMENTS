@@ -1,30 +1,68 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Smoke tests for the campus bulletin board UI.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:student_announcements/main.dart';
 
+Finder tapeTab(String filter) => find.byKey(ValueKey<String>(filter));
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('board renders notes and filter tabs',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const StudentAnnouncementsApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('THE CAMPUS BULLETIN'), findsOneWidget);
+    expect(find.text('Midterm Examination Schedule'), findsOneWidget);
+    expect(find.text('Pin a note'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Winter Break Schedule'),
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Winter Break Schedule'), findsOneWidget);
+  });
+
+  testWidgets('filtering by category narrows the board',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const StudentAnnouncementsApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(tapeTab('Holiday'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Winter Break Schedule'), findsOneWidget);
+    expect(find.text('Midterm Examination Schedule'), findsNothing);
+  });
+
+  testWidgets('compose screen opens from a filtered board',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const StudentAnnouncementsApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(tapeTab('Exam'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pin a note'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pin it to the board'), findsOneWidget);
+    expect(find.text('Fresh off the press'), findsOneWidget);
+  });
+  testWidgets('tapping a note opens its sheet', (WidgetTester tester) async {
+    await tester.pumpWidget(const StudentAnnouncementsApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Midterm Examination Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('THE NOTE'), findsOneWidget); // detail app bar
+    expect(find.text('THE FULL NOTE'), findsOneWidget);
+    expect(find.text('PINNED BY'), findsOneWidget);
+    expect(find.text('Academic Office'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
   });
 }
