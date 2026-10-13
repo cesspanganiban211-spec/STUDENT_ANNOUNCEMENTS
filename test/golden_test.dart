@@ -2,10 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:student_announcements/main.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   Future<void> pumpAt(WidgetTester tester, Widget widget) async {
     tester.view.physicalSize = const Size(412, 880);
     tester.view.devicePixelRatio = 1;
@@ -37,6 +42,8 @@ void main() {
             postedBy: 'Academic Office',
             isUrgent: true,
           ),
+          onChanged: (_) {},
+          onDeleted: () {},
         ),
       ),
     );

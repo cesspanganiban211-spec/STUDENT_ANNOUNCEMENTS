@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const StudentAnnouncementsApp());
@@ -85,6 +88,9 @@ class Announcement {
   /// When the announcement happens or is due (optional).
   final DateTime? eventDate;
 
+  /// Bookmarked by the student; survives restarts.
+  final bool isSaved;
+
   Announcement({
     required this.id,
     required this.title,
@@ -94,7 +100,58 @@ class Announcement {
     required this.postedBy,
     this.isUrgent = false,
     this.eventDate,
+    this.isSaved = false,
   });
+
+  Announcement copyWith({
+    String? title,
+    String? description,
+    String? category,
+    DateTime? datePosted,
+    String? postedBy,
+    bool? isUrgent,
+    bool? isSaved,
+    DateTime? eventDate,
+  }) {
+    return Announcement(
+      id: id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      datePosted: datePosted ?? this.datePosted,
+      postedBy: postedBy ?? this.postedBy,
+      isUrgent: isUrgent ?? this.isUrgent,
+      eventDate: eventDate ?? this.eventDate,
+      isSaved: isSaved ?? this.isSaved,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'category': category,
+        'datePosted': datePosted.toIso8601String(),
+        'postedBy': postedBy,
+        'isUrgent': isUrgent,
+        'eventDate': eventDate?.toIso8601String(),
+        'isSaved': isSaved,
+      };
+
+  factory Announcement.fromJson(Map<String, dynamic> json) {
+    final event = json['eventDate'] as String?;
+    return Announcement(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      category: json['category'] as String,
+      datePosted: DateTime.parse(json['datePosted'] as String),
+      postedBy: json['postedBy'] as String,
+      isUrgent: json['isUrgent'] as bool? ?? false,
+      eventDate: event == null ? null : DateTime.parse(event),
+      isSaved: json['isSaved'] as bool? ?? false,
+    );
+  }
 }
 
 // ==================== HELPERS ====================
@@ -525,7 +582,40 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Announcement> _announcements = [
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  /// Reloads the board after a restart (falls back to the seeded board).
+  Future<void> _loadNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('notes');
+      if (raw == null) return;
+      final stored = (jsonDecode(raw) as List)
+          .map((e) => Announcement.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (mounted) setState(() => _announcements = stored);
+    } catch (_) {
+      // Storage unavailable (tests, web without storage) - keep the seeds.
+    }
+  }
+
+  Future<void> _persistNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'notes',
+        jsonEncode(_announcements.map((a) => a.toJson()).toList()),
+      );
+    } catch (_) {
+      // Nothing we can do about a failed write; the app keeps working.
+    }
+  }
+
+  List<Announcement> _announcements = [
     Announcement(
       id: '1',
       title: 'Midterm Examination Schedule',
@@ -725,6 +815,9 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   String _selectedFilter = 'All';
+  String _query = '';
+  bool _searching = false;
+  bool _savedOnly = false;
   final List<String> _filters = const [
     'All',
     'Event',
@@ -734,31 +827,129 @@ class _HomeScreenState extends State<HomeScreen> {
     'General',
   ];
 
-  List<Announcement> get _filteredAnnouncements {
-    if (_selectedFilter == 'All') return _announcements;
-    return _announcements.where((a) => a.category == _selectedFilter).toList();
+  int get _savedCount => _announcements.where((a) => a.isSaved).length;
+
+  String get _emptyMessage {
+    if (_query.trim().isNotEmpty) {
+      return 'No notes match "${_query.trim()}"';
+    }
+    if (_savedOnly) return 'Nothing saved yet \u2014 tap Save on a note first.';
+    return 'No "$_selectedFilter" notes on the board right now.';
   }
 
-  void _navigateToCreateAnnouncement() async {
+  List<Announcement> get _filteredAnnouncements {
+    Iterable<Announcement> list = _announcements;
+    if (_selectedFilter != 'All') {
+      list = list.where((a) => a.category == _selectedFilter);
+    }
+    if (_savedOnly) list = list.where((a) => a.isSaved);
+    final query = _query.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      list = list.where(
+        (a) =>
+            a.title.toLowerCase().contains(query) ||
+            a.description.toLowerCase().contains(query) ||
+            a.postedBy.toLowerCase().contains(query),
+      );
+    }
+    return list.toList();
+  }
+
+  /// Asks first, then unpins with a snack bar that can undo the removal.
+  Future<bool> _confirmDelete(Announcement announcement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Palette.paper,
+        title: const Text('Unpin this note?'),
+        content: Text(
+          '"${announcement.title}" will be taken off the board.',
+          style: const TextStyle(color: Palette.inkSoft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Unpin',
+              style: TextStyle(
+                color: Palette.stamp,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  void _deleteAnnouncement(Announcement announcement) {
+    final index = _announcements.indexWhere((a) => a.id == announcement.id);
+    if (index == -1) return;
+    setState(() => _announcements.removeAt(index));
+    _persistNotes();
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Unpinned "${announcement.title}"'),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'UNDO',
+            textColor: const Color(0xFFF3A712),
+            onPressed: () {
+              if (!mounted) return;
+              setState(() {
+                _announcements.insert(
+                  index > _announcements.length ? _announcements.length : index,
+                  announcement,
+                );
+              });
+              _persistNotes();
+            },
+          ),
+        ),
+      );
+  }
+
+  void _updateAnnouncement(Announcement updated) {
+    final index = _announcements.indexWhere((a) => a.id == updated.id);
+    if (index == -1) return;
+    setState(() => _announcements[index] = updated);
+    _persistNotes();
+  }
+
+  void _navigateToCreateAnnouncement({Announcement? initial}) async {
     final result = await Navigator.push<Announcement>(
       context,
       MaterialPageRoute(
-        builder: (context) => const CreateAnnouncementScreen(),
+        builder: (context) => CreateAnnouncementScreen(initial: initial),
       ),
     );
-    if (result != null) {
-      setState(() {
-        _announcements.insert(0, result);
-      });
+    if (result == null) return;
+    if (initial == null) {
+      setState(() => _announcements.insert(0, result));
+    } else {
+      final index = _announcements.indexWhere((a) => a.id == result.id);
+      if (index != -1) setState(() => _announcements[index] = result);
     }
+    _persistNotes();
   }
 
   void _navigateToDetail(Announcement announcement) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            AnnouncementDetailScreen(announcement: announcement),
+        builder: (context) => AnnouncementDetailScreen(
+          announcement: announcement,
+          onChanged: _updateAnnouncement,
+          onDeleted: () => _deleteAnnouncement(announcement),
+        ),
       ),
     );
   }
@@ -784,7 +975,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 3),
             Text(
-              '${_announcements.length} notes pinned \u00b7 ${boardDate(DateTime.now())}',
+              '${_announcements.length} notes pinned \u00b7 $_savedCount saved \u00b7 ${boardDate(DateTime.now())}',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -794,6 +985,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: _savedOnly ? 'Show every note' : 'Show saved notes only',
+            onPressed: () => setState(() => _savedOnly = !_savedOnly),
+            icon: Icon(
+              _savedOnly ? Icons.bookmark : Icons.bookmark_border,
+              color: _savedOnly ? const Color(0xFFF3A712) : Palette.paper,
+            ),
+          ),
+          IconButton(
+            tooltip: _searching ? 'Close search' : 'Search notes',
+            onPressed: () => setState(() {
+              _searching = !_searching;
+              if (!_searching) _query = '';
+            }),
+            icon: Icon(_searching ? Icons.close : Icons.search),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -810,6 +1019,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   painter: BuntingPainter(),
                 ),
               ),
+              // Search slips down from the app bar.
+              if (_searching)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+                  child: TextField(
+                    autofocus: true,
+                    onChanged: (value) => setState(() => _query = value),
+                    style: const TextStyle(color: Palette.ink, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search title, details or who posted it',
+                      prefixIcon:
+                          const Icon(Icons.search, color: Palette.inkSoft),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear,
+                                  color: Palette.inkSoft),
+                              onPressed: () => setState(() => _query = ''),
+                            ),
+                      filled: true,
+                      fillColor: Palette.paper,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: Palette.ink.withValues(alpha: 0.25),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // Washi-tape filter tabs.
               SizedBox(
                 height: 58,
@@ -833,7 +1073,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               Expanded(
                 child: _filteredAnnouncements.isEmpty
-                    ? _EmptyBoard(filter: _selectedFilter)
+                    ? _EmptyBoard(message: _emptyMessage)
                     : RefreshIndicator(
                         color: Palette.stamp,
                         backgroundColor: Palette.paper,
@@ -845,12 +1085,47 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemCount: _filteredAnnouncements.length,
                           itemBuilder: (context, index) {
                             final announcement = _filteredAnnouncements[index];
-                            return _AnnouncementCard(
-                              key: ValueKey(
-                                  '${_selectedFilter}_${announcement.id}'),
-                              announcement: announcement,
-                              index: index,
-                              onTap: () => _navigateToDetail(announcement),
+                            return Dismissible(
+                              key: ValueKey(announcement.id),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (_) =>
+                                  _confirmDelete(announcement),
+                              onDismissed: (_) =>
+                                  _deleteAnnouncement(announcement),
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 34),
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: Palette.stamp,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.delete_outline,
+                                        color: Colors.white),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'UNPIN',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              child: _AnnouncementCard(
+                                key: ValueKey(
+                                    '${_selectedFilter}_${announcement.id}'),
+                                announcement: announcement,
+                                index: index,
+                                onTap: () => _navigateToDetail(announcement),
+                              ),
                             );
                           },
                         ),
@@ -999,9 +1274,9 @@ class _ScheduleStrip extends StatelessWidget {
 // ==================== EMPTY STATE ====================
 
 class _EmptyBoard extends StatelessWidget {
-  const _EmptyBoard({required this.filter});
+  const _EmptyBoard({required this.message});
 
-  final String filter;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -1036,7 +1311,7 @@ class _EmptyBoard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'No "$filter" notes on the board right now.',
+                message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: Palette.inkSoft),
               ),
@@ -1103,10 +1378,22 @@ class _AnnouncementCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (announcement.isUrgent) ...[
+                          if (announcement.isUrgent ||
+                              announcement.isSaved) ...[
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
-                              children: [urgentStamp()],
+                              children: [
+                                if (announcement.isSaved) ...[
+                                  const Icon(
+                                    Icons.bookmark,
+                                    size: 18,
+                                    color: Color(0xFFF3A712),
+                                  ),
+                                  if (announcement.isUrgent)
+                                    const SizedBox(width: 10),
+                                ],
+                                if (announcement.isUrgent) urgentStamp(),
+                              ],
                             ),
                             const SizedBox(height: 10),
                           ],
@@ -1205,7 +1492,10 @@ class _AnnouncementCard extends StatelessWidget {
 // ==================== CREATE ANNOUNCEMENT SCREEN ====================
 
 class CreateAnnouncementScreen extends StatefulWidget {
-  const CreateAnnouncementScreen({super.key});
+  const CreateAnnouncementScreen({super.key, this.initial});
+
+  /// When set, the form opens pre-filled so the note can be edited.
+  final Announcement? initial;
 
   @override
   State<CreateAnnouncementScreen> createState() =>
@@ -1229,6 +1519,23 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     'Assignment',
     'Holiday',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final note = widget.initial;
+    if (note == null) return;
+    _titleController.text = note.title;
+    _descriptionController.text = note.description;
+    _postedByController.text = note.postedBy;
+    _selectedCategory = note.category;
+    _isUrgent = note.isUrgent;
+    final event = note.eventDate;
+    if (event != null) {
+      _eventDate = DateTime(event.year, event.month, event.day);
+      _eventTime = TimeOfDay(hour: event.hour, minute: event.minute);
+    }
+  }
 
   @override
   void dispose() {
@@ -1264,14 +1571,16 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
   void _submitAnnouncement() {
     if (_formKey.currentState!.validate()) {
+      final existing = widget.initial;
       final announcement = Announcement(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: existing?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         category: _selectedCategory,
-        datePosted: DateTime.now(),
+        datePosted: existing?.datePosted ?? DateTime.now(),
         postedBy: _postedByController.text.trim(),
         isUrgent: _isUrgent,
+        isSaved: existing?.isSaved ?? false,
         eventDate: _eventDate == null
             ? null
             : DateTime(
@@ -1285,8 +1594,12 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context, announcement);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Your note is pinned to the board!'),
+        SnackBar(
+          content: Text(
+            existing == null
+                ? 'Your note is pinned to the board!'
+                : 'Changes saved!',
+          ),
         ),
       );
     }
@@ -1296,7 +1609,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Palette.cork,
-      appBar: AppBar(title: const Text('PIN A NEW NOTE')),
+      appBar: AppBar(
+        title: Text(widget.initial == null ? 'PIN A NEW NOTE' : 'EDIT NOTE'),
+      ),
       body: Stack(
         children: [
           const Positioned.fill(
@@ -1318,9 +1633,11 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Fresh off the press',
-                            style: TextStyle(
+                          Text(
+                            widget.initial == null
+                                ? 'Fresh off the press'
+                                : 'Touching up an existing note',
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2,
@@ -1526,9 +1843,11 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                             child: ElevatedButton.icon(
                               onPressed: _submitAnnouncement,
                               icon: const Icon(Icons.push_pin_outlined),
-                              label: const Text(
-                                'Pin it to the board',
-                                style: TextStyle(
+                              label: Text(
+                                widget.initial == null
+                                    ? 'Pin it to the board'
+                                    : 'Save changes',
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.5,
@@ -1570,18 +1889,121 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
 // ==================== ANNOUNCEMENT DETAIL SCREEN ====================
 
-class AnnouncementDetailScreen extends StatelessWidget {
-  const AnnouncementDetailScreen({super.key, required this.announcement});
+class AnnouncementDetailScreen extends StatefulWidget {
+  const AnnouncementDetailScreen({
+    super.key,
+    required this.announcement,
+    required this.onChanged,
+    required this.onDeleted,
+  });
 
   final Announcement announcement;
 
+  /// Keeps the board (and storage) in sync with edits/saves made here.
+  final ValueChanged<Announcement> onChanged;
+
+  /// Takes the note off the board.
+  final VoidCallback onDeleted;
+
+  @override
+  State<AnnouncementDetailScreen> createState() =>
+      _AnnouncementDetailScreenState();
+}
+
+class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
+  late Announcement _current = widget.announcement;
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Palette.paper,
+        title: const Text('Unpin this note?'),
+        content: Text(
+          '"${_current.title}" will be taken off the board.',
+          style: const TextStyle(color: Palette.inkSoft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Unpin',
+              style: TextStyle(
+                color: Palette.stamp,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    widget.onDeleted();
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _edit() async {
+    final updated = await Navigator.push<Announcement>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateAnnouncementScreen(initial: _current),
+      ),
+    );
+    if (updated == null || !mounted) return;
+    setState(() => _current = updated);
+    widget.onChanged(updated);
+  }
+
+  void _toggleSave() {
+    setState(() => _current = _current.copyWith(isSaved: !_current.isSaved));
+    widget.onChanged(_current);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            _current.isSaved
+                ? 'Tucked into your pocket!'
+                : 'Taken out of your pocket',
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final announcement = _current;
     final style = categoryStyle(announcement.category);
 
     return Scaffold(
       backgroundColor: Palette.cork,
-      appBar: AppBar(title: const Text('THE NOTE')),
+      appBar: AppBar(
+        title: const Text('THE NOTE'),
+        actions: [
+          IconButton(
+            tooltip: _current.isSaved ? 'Remove from saved' : 'Save note',
+            onPressed: _toggleSave,
+            icon: Icon(
+              _current.isSaved ? Icons.bookmark : Icons.bookmark_border,
+              color: _current.isSaved ? const Color(0xFFF3A712) : Palette.paper,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Edit note',
+            onPressed: _edit,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            tooltip: 'Delete note',
+            onPressed: _confirmDelete,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           const Positioned.fill(
@@ -1757,15 +2179,16 @@ class AnnouncementDetailScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Tucked into your pocket!')),
-                    );
-                  },
-                  icon: const Icon(Icons.bookmark_border, size: 18),
-                  label: const Text('Save'),
+                  onPressed: _toggleSave,
+                  icon: Icon(
+                    _current.isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    size: 18,
+                  ),
+                  label: Text(_current.isSaved ? 'Saved' : 'Save'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Palette.paper,
+                    foregroundColor: _current.isSaved
+                        ? const Color(0xFFF3A712)
+                        : Palette.paper,
                     side: BorderSide(
                       color: Palette.paper.withValues(alpha: 0.5),
                     ),

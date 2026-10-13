@@ -21,6 +21,16 @@ red when they are urgent.
 - **When it was made** — `datePosted` is stamped on every card
   (`Posted on Oct 08, 2026 - 9:30 AM`) and shown in full on the detail sheet.
 
+## Everything else it can do
+
+| Feature | How it works |
+| --- | --- |
+| **Delete** | Swipe a note left on the board (or tap the trash icon on the sheet). It asks first, then shows **UNDO** in the snack bar if you change your mind. |
+| **Edit** | Pencil icon on the sheet reopens the form pre-filled — "Save changes" keeps the original posted date and id. |
+| **Search** | Magnifier in the app bar drops down a search box; matches title, details *and* who posted it, on top of the category tabs. |
+| **Saved notes** | Bookmark on the sheet (or its bottom bar) files a note into your pocket; the bookmark in the app bar filters to saved notes only, and the header counts them. |
+| **It remembers** | The whole board is written to `shared_preferences` as JSON, so notes you add, edit, save or delete today are still there tomorrow. |
+
 ## Look & feel
 
 - `CorkboardPainter` paints the cork (speckles + vignette) — no bitmaps needed.
@@ -38,7 +48,7 @@ and no extra packages.
 ```bash
 flutter pub get
 flutter run          # any device
-flutter test         # 4 widget tests + 3 golden snapshots
+flutter test         # 8 widget tests + 3 golden snapshots
 ```
 
 ## Install it on an Android phone
