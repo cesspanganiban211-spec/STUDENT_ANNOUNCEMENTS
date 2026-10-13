@@ -6,7 +6,35 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(const StudentAnnouncementsApp());
+  runApp(StudentAnnouncementsApp(home: initialScreen()));
+}
+
+/// Deep links for the web build — `?screen=detail` or `?screen=compose` open
+/// that screen directly, which is handy for sharing a link to a note and for
+/// grabbing screenshots of each screen.
+Widget? initialScreen() {
+  switch (Uri.base.queryParameters['screen']) {
+    case 'detail':
+      return AnnouncementDetailScreen(
+        announcement: Announcement(
+          id: 'demo',
+          title: 'Midterm Examination Schedule',
+          description:
+              'The midterm examinations will begin on October 15th. Please check the detailed schedule on the student portal. All students are required to bring their student ID cards.',
+          category: 'Exam',
+          datePosted: DateTime(2026, 10, 8, 9, 30),
+          postedBy: 'Academic Office',
+          isUrgent: true,
+          eventDate: DateTime(2026, 10, 15, 8, 0),
+        ),
+        onChanged: (_) {},
+        onDeleted: () {},
+      );
+    case 'compose':
+      return const CreateAnnouncementScreen();
+    default:
+      return null;
+  }
 }
 
 // ==================== THEME / PALETTE ====================
