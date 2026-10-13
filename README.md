@@ -1,15 +1,16 @@
 # CHCC Student Announcements
 
-A student announcements app that looks like the corkboard in the hallway — notes
-are pinned to a textured board, taped down with coloured washi tape, and stamped
-red when they are urgent.
+A student announcements app that looks like the campus notice board at night —
+cream paper notes are pinned to a deep navy board, taped down with coloured
+washi tape, and stamped red when they are urgent. A hand-stamped **CHCC crest**
+seals the header next to the wordmark.
 
 ## Screens
 
 | Screen | What it does |
 | --- | --- |
-| **Board** (home) | Bunting strung under the app bar, filter tabs cut from tape, and a feed of paper notes that drop onto the board one after another. |
-| **The note** (detail) | The full sheet on cork, with a hand-drawn underline, pin metadata, and a bottom bar for sharing or saving. |
+| **Board** (home) | The CHCC crest and wordmark in the app bar, bunting strung underneath, filter tabs cut from tape, and a feed of paper notes that drop onto the board one after another. |
+| **The note** (detail) | The full sheet on the navy board, with a hand-drawn underline, pin metadata, and a bottom bar for sharing or saving. |
 | **Pin a new note** (create) | A fresh sheet of paper with the category taped across the top; validation, categories, an optional urgent stamp, and a **date + time picker** for when the announcement happens. |
 
 ## Dates on every note
@@ -33,7 +34,8 @@ red when they are urgent.
 
 ## Look & feel
 
-- `CorkboardPainter` paints the cork (speckles + vignette) — no bitmaps needed.
+- `CorkboardPainter` paints the midnight-navy board (top-lit gradient +
+  speckles + vignette) — no bitmaps needed.
 - `BuntingPainter` draws the flags hanging from the app bar.
 - `DeckleClipper` tears the bottom edge of every sheet; `PhysicalShape` casts a
   shadow that follows the tear.

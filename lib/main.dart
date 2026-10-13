@@ -12,14 +12,16 @@ void main() {
 // ==================== THEME / PALETTE ====================
 
 abstract final class Palette {
-  static const Color cork = Color(0xFFC08B52);
-  static const Color corkDark = Color(0xFF9B6A33);
-  static const Color corkLight = Color(0xFFDDB073);
+  // Midnight-navy board: gradient top -> bottom (corkLight -> cork -> corkDark).
+  static const Color cork = Color(0xFF12263F);
+  static const Color corkDark = Color(0xFF0A1729);
+  static const Color corkLight = Color(0xFF1D3B61);
   static const Color paper = Color(0xFFFCF6E7);
   static const Color ink = Color(0xFF2C2620);
   static const Color inkSoft = Color(0xFF7B6F61);
-  static const Color walnut = Color(0xFF33281C);
+  static const Color walnut = Color(0xFF070F1C);
   static const Color stamp = Color(0xFFC1402C);
+  static const Color gold = Color(0xFFE2A33B);
 }
 
 class StudentAnnouncementsApp extends StatelessWidget {
@@ -339,7 +341,18 @@ class CorkboardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
-    canvas.drawRect(bounds, Paint()..color = Palette.cork);
+
+    // Deep navy wash, lit from the top of the board.
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Palette.corkLight, Palette.cork, Palette.corkDark],
+          stops: [0, 0.5, 1],
+        ).createShader(bounds),
+    );
 
     final random = math.Random(20261008);
     final dark = Paint()
@@ -955,7 +968,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Color _filterColor(String filter) =>
-      filter == 'All' ? const Color(0xFFE2A33B) : categoryColor(filter);
+      filter == 'All' ? Palette.gold : categoryColor(filter);
 
   @override
   Widget build(BuildContext context) {
@@ -1019,7 +1032,7 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 3,
               width: 82,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2A33B),
+                color: Palette.gold,
                 borderRadius: BorderRadius.circular(3),
                 boxShadow: [
                   BoxShadow(
@@ -1229,7 +1242,7 @@ class _TapeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tapeColor = selected ? color : color.withValues(alpha: 0.55);
+    final tapeColor = selected ? color : color.withValues(alpha: 0.78);
 
     return Padding(
       padding: const EdgeInsets.only(right: 10),
