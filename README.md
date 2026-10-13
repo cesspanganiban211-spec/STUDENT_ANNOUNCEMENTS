@@ -10,8 +10,13 @@ Concepcion Holy Cross College, Inc.** sits in the header beside the wordmark.
 | Screen | What it does |
 | --- | --- |
 | **Board** (home) | The CHCC crest and wordmark in the app bar, bunting strung underneath, filter tabs cut from tape, and a feed of paper notes that drop onto the board one after another. |
+| **Events** (bottom tab) | The campus diary: every dated note as a card with a calendar chip, **venue**, date strip and countdown — **soonest first**, with an **Upcoming / Past** switch. |
 | **The note** (detail) | The full sheet on the navy board, with a hand-drawn underline, pin metadata, and a bottom bar for sharing or saving. |
-| **Pin a new note** (create) | A fresh sheet of paper with the category taped across the top; validation, categories, an optional urgent stamp, and a **date + time picker** for when the announcement happens. |
+| **Pin a new note** (create) | A fresh sheet of paper with the category taped across the top; validation, categories, an optional urgent stamp, a **venue**, a **date + time picker**, and an optional **take-it-down timer** for temporary notes. |
+
+The **Board / Events** switch lives in the bottom navigation bar, and the
+button on each tab matches it — *Pin a note* on the board, *Add an event*
+(pre-set to the Event category) on the diary.
 
 ## Dates on every note
 
@@ -21,11 +26,22 @@ Concepcion Holy Cross College, Inc.** sits in the header beside the wordmark.
   2 days, amber within a week, green after that.
 - **When it was made** — `datePosted` is stamped on every card
   (`Posted on Oct 08, 2026 - 9:30 AM`) and shown in full on the detail sheet.
+- **Where it happens** — `venue` is an optional field of its own (not buried
+  in the description). It shows under the title on the board, on every event
+  card, and as a **VENUE** row on the note sheet. Empty venues read
+  *"Venue to be announced"*.
+- **When it goes away** — `expiresAt` makes a note *temporary*. The compose
+  form offers a switch plus take-down choices (*After the event*, *In 24
+  hours*, *In 3 days*, *In 7 days*, *In 30 days*), previews the exact moment,
+  and stamps the note with an amber **TAKES ITSELF DOWN** pill. Once the time
+  passes the note is off the board, off the events page, and out of storage —
+  no clutter left behind.
 
 ## Everything else it can do
 
 | Feature | How it works |
 | --- | --- |
+| **Events page** | Upcoming events sorted soonest-first with date, countdown and venue; flip to **Past** for what has already happened. Notes without a date stay on the board only. |
 | **Delete** | Swipe a note left on the board (or tap the trash icon on the sheet). It asks first, then shows **UNDO** in the snack bar if you change your mind. |
 | **Edit** | Pencil icon on the sheet reopens the form pre-filled — "Save changes" keeps the original posted date and id. |
 | **Search** | Magnifier in the app bar drops down a search box; matches title, details *and* who posted it, on top of the category tabs. |
@@ -53,7 +69,7 @@ and no extra packages.
 ```bash
 flutter pub get
 flutter run          # any device
-flutter test         # 8 widget tests + 3 golden snapshots
+flutter test         # 12 widget tests + 4 golden snapshots
 ```
 
 ## Install it on an Android phone

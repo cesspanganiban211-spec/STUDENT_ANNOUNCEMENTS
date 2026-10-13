@@ -168,4 +168,131 @@ void main() {
 
     expect(find.text('Midterm Schedule (revised)'), findsOneWidget);
   });
+
+  testWidgets('events tab lists upcoming notes with their venues',
+      (WidgetTester tester) async {
+    await pumpBoard(tester);
+
+    await tester.tap(find.text('Events'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('UPCOMING'), findsOneWidget);
+    expect(find.text('PAST'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Annual Science Fair 2026'),
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    expect(find.text('Annual Science Fair 2026'), findsOneWidget);
+    expect(find.text('CHCC Gymnasium'), findsOneWidget); // venue
+    expect(find.byIcon(Icons.event_available), findsWidgets); // date strips
+    expect(find.byIcon(Icons.place_outlined), findsWidgets);
+  });
+
+  testWidgets('events run soonest first, past ones latest first',
+      (WidgetTester tester) async {
+    Announcement event(String id, String title, DateTime when) => Announcement(
+          id: id,
+          title: title,
+          description: 'Details.',
+          category: 'Event',
+          datePosted: DateTime.now(),
+          postedBy: 'Tester',
+          eventDate: when,
+          venue: 'Hall',
+        );
+
+    final now = DateTime.now();
+    final notes = [
+      event('later', 'The Far Away Fair', now.add(const Duration(days: 30))),
+      event('sooner', 'The Near Fair', now.add(const Duration(days: 2))),
+    ];
+
+    await tester.pumpWidget(StudentAnnouncementsApp(
+      home: EventsScreen(
+        announcements: notes,
+        onChanged: (_) {},
+        onDeleted: (_) {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final soonest = tester.getTopLeft(find.text('The Near Fair')).dy;
+    final later = tester.getTopLeft(find.text('The Far Away Fair')).dy;
+    expect(soonest, lessThan(later));
+    expect(find.text('Hall'), findsNWidgets(2)); // venue on both cards
+  });
+
+  testWidgets('a temporary note takes itself down when its time is up',
+      (WidgetTester tester) async {
+    Announcement note(String id, DateTime? expiresAt) => Announcement(
+          id: id,
+          title: 'Temporary Open House',
+          description: 'It will vanish on its own.',
+          category: 'Event',
+          datePosted: DateTime.now(),
+          postedBy: 'Admin',
+          eventDate: DateTime.now().add(const Duration(days: 3)),
+          venue: 'Main Hall',
+          expiresAt: expiresAt,
+      );
+
+    await tester.pumpWidget(StudentAnnouncementsApp(
+      home: EventsScreen(
+        announcements: [
+          note('alive', DateTime.now().add(const Duration(days: 1))),
+          note('expired', DateTime.now().subtract(const Duration(minutes: 1))),
+        ],
+        onChanged: (_) {},
+        onDeleted: (_) {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Only the one still standing is listed.
+    expect(find.text('Temporary Open House'), findsOneWidget);
+    expect(find.textContaining('TAKES ITSELF DOWN'), findsOneWidget);
+
+    // Once it is gone from the events page, it is gone from the board too.
+    await tester.pumpWidget(const StudentAnnouncementsApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Events'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Temporary Open House'), findsNothing);
+  });
+
+  testWidgets('pinning a temporary note with a venue',
+      (WidgetTester tester) async {
+    // Tall surface so the whole form fits without scrolling.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpBoard(tester);
+
+    await tester.tap(find.text('Pin a note'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.byType(TextFormField).at(0), 'Pop-up Study Hall');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Walk-in review.');
+    await tester.enterText(find.byType(TextFormField).at(2), 'Library Staff');
+    await tester.enterText(find.byType(TextFormField).at(3), 'Library Annex');
+
+    await tester.tap(find.byType(SwitchListTile).first); // take it down
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('In 24 hours'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pin it to the board'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pop-up Study Hall'), findsOneWidget);
+    expect(find.text('Library Annex'), findsOneWidget);
+    expect(find.textContaining('TAKES ITSELF DOWN'), findsOneWidget);
+  });
 }

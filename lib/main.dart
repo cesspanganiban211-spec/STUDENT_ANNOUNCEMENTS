@@ -118,6 +118,12 @@ class Announcement {
   /// When the announcement happens or is due (optional).
   final DateTime? eventDate;
 
+  /// Where it happens — "Main Gymnasium", "Room 204"... (optional).
+  final String? venue;
+
+  /// Temporary notes take themselves off the board once this passes.
+  final DateTime? expiresAt;
+
   /// Bookmarked by the student; survives restarts.
   final bool isSaved;
 
@@ -130,8 +136,19 @@ class Announcement {
     required this.postedBy,
     this.isUrgent = false,
     this.eventDate,
+    this.venue,
+    this.expiresAt,
     this.isSaved = false,
   });
+
+  /// True when the note was pinned with a take-down time.
+  bool get isTemporary => expiresAt != null;
+
+  /// True once a temporary note's take-down time has passed.
+  bool isExpired([DateTime? now]) {
+    final expiry = expiresAt;
+    return expiry != null && expiry.isBefore(now ?? DateTime.now());
+  }
 
   Announcement copyWith({
     String? title,
@@ -142,6 +159,8 @@ class Announcement {
     bool? isUrgent,
     bool? isSaved,
     DateTime? eventDate,
+    String? venue,
+    DateTime? expiresAt,
   }) {
     return Announcement(
       id: id,
@@ -152,6 +171,8 @@ class Announcement {
       postedBy: postedBy ?? this.postedBy,
       isUrgent: isUrgent ?? this.isUrgent,
       eventDate: eventDate ?? this.eventDate,
+      venue: venue ?? this.venue,
+      expiresAt: expiresAt ?? this.expiresAt,
       isSaved: isSaved ?? this.isSaved,
     );
   }
@@ -165,11 +186,14 @@ class Announcement {
         'postedBy': postedBy,
         'isUrgent': isUrgent,
         'eventDate': eventDate?.toIso8601String(),
+        'venue': venue,
+        'expiresAt': expiresAt?.toIso8601String(),
         'isSaved': isSaved,
       };
 
   factory Announcement.fromJson(Map<String, dynamic> json) {
     final event = json['eventDate'] as String?;
+    final expiry = json['expiresAt'] as String?;
     return Announcement(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -179,6 +203,8 @@ class Announcement {
       postedBy: json['postedBy'] as String,
       isUrgent: json['isUrgent'] as bool? ?? false,
       eventDate: event == null ? null : DateTime.parse(event),
+      venue: json['venue'] as String?,
+      expiresAt: expiry == null ? null : DateTime.parse(expiry),
       isSaved: json['isSaved'] as bool? ?? false,
     );
   }
@@ -339,6 +365,30 @@ Color whenColor(int days) {
   if (days <= 2) return Palette.stamp;
   if (days <= 7) return const Color(0xFFD0872B);
   return const Color(0xFF4E8A5B);
+}
+
+/// Calendar-chip pieces for a date: month stamp, day number, weekday stamp.
+({String month, String day, String weekday}) eventChip(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return (
+    month: months[date.month - 1],
+    day: date.day.toString(),
+    weekday: days[date.weekday - 1],
+  );
 }
 
 String boardDate(DateTime date) {
@@ -613,6 +663,93 @@ Widget urgentStamp({double angle = -0.11, double fontSize = 12}) {
   );
 }
 
+/// The take-down choices offered for a temporary note.
+const List<String> temporarySpans = [
+  'After the event',
+  'In 24 hours',
+  'In 3 days',
+  'In 7 days',
+  'In 30 days',
+];
+
+/// When a temporary note pinned with [span] takes itself down.
+///
+/// "After the event" hangs around for a day after [event]; the other spans
+/// are counted from [now] — the moment the note is pinned.
+DateTime expiryFor(String span, {DateTime? event, DateTime? now}) {
+  final from = now ?? DateTime.now();
+  switch (span) {
+    case 'In 24 hours':
+      return from.add(const Duration(hours: 24));
+    case 'In 3 days':
+      return from.add(const Duration(days: 3));
+    case 'In 7 days':
+      return from.add(const Duration(days: 7));
+    case 'In 30 days':
+      return from.add(const Duration(days: 30));
+    default:
+      return (event ?? from).add(const Duration(days: 1));
+  }
+}
+
+/// Finds the span that best matches an existing expiry (used when editing).
+String spanForExpiry(DateTime expiresAt, {DateTime? event, DateTime? now}) {
+  // Without an event date there is nothing to hang "After the event" on.
+  final candidates = event == null
+      ? temporarySpans.where((span) => span != temporarySpans.first).toList()
+      : temporarySpans;
+
+  var best = candidates.first;
+  var bestGap = -1;
+  for (final span in candidates) {
+    final gap =
+        expiryFor(span, event: event, now: now).difference(expiresAt).abs();
+    if (bestGap < 0 || gap.inSeconds < bestGap) {
+      best = span;
+      bestGap = gap.inSeconds;
+    }
+  }
+  return best;
+}
+
+/// Amber "takes itself down" tag, shown wherever a temporary note appears.
+class ExpiryPill extends StatelessWidget {
+  const ExpiryPill({super.key, required this.expiresAt});
+
+  final DateTime expiresAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = whenInfo(expiresAt);
+    final color = info.days <= 1 ? Palette.stamp : const Color(0xFFD0872B);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.hourglass_top, size: 13, color: color),
+          const SizedBox(width: 6),
+          Text(
+            'TAKES ITSELF DOWN \u00b7 ${info.label}',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ==================== HOME SCREEN ====================
 
 class HomeScreen extends StatefulWidget {
@@ -638,7 +775,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final stored = (jsonDecode(raw) as List)
           .map((e) => Announcement.fromJson(e as Map<String, dynamic>))
           .toList();
-      if (mounted) setState(() => _announcements = stored);
+      // Temporary notes that ran out are wiped for good.
+      final alive = stored.where((a) => !a.isExpired()).toList();
+      if (mounted) setState(() => _announcements = alive);
+      if (alive.length != stored.length) _persistNotes();
     } catch (_) {
       // Storage unavailable (tests, web without storage) - keep the seeds.
     }
@@ -676,6 +816,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(hours: 5)),
       postedBy: 'Science Department',
+      venue: 'CHCC Gymnasium',
       eventDate: daysFromNow(12, hour: 8),
     ),
     Announcement(
@@ -715,6 +856,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(hours: 8)),
       postedBy: 'Student Affairs Office',
+      venue: 'Main Auditorium',
       isUrgent: true,
     ),
     Announcement(
@@ -735,6 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
       postedBy: 'Chemistry Department',
+      venue: 'Science Building, Room 302',
       isUrgent: true,
     ),
     Announcement(
@@ -763,6 +906,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 2, hours: 4)),
       postedBy: 'Athletics Department',
+      venue: 'Main Gymnasium',
       eventDate: DateTime(2026, 10, 14, 16),
     ),
     Announcement(
@@ -784,7 +928,10 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 4)),
       postedBy: 'Student Activities Board',
+      venue: 'Student Center',
       eventDate: DateTime(2026, 10, 31, 18),
+      // Temporary note: a day after the contest, it takes itself down.
+      expiresAt: DateTime(2026, 11, 1, 18),
     ),
     Announcement(
       id: '14',
@@ -794,6 +941,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Exam',
       datePosted: DateTime.now().subtract(const Duration(days: 4, hours: 5)),
       postedBy: 'Dr. Robert Chen',
+      venue: 'Room 204',
       eventDate: DateTime(2026, 10, 14, 8),
     ),
     Announcement(
@@ -813,6 +961,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 5, hours: 3)),
       postedBy: 'Fine Arts Department',
+      venue: 'Campus Gallery',
       eventDate: DateTime(2026, 10, 18, 17),
     ),
     Announcement(
@@ -823,6 +972,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'General',
       datePosted: DateTime.now().subtract(const Duration(days: 6)),
       postedBy: 'Math Department',
+      venue: 'Math Learning Center, Room 112',
     ),
     Announcement(
       id: '18',
@@ -851,6 +1001,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: 'Event',
       datePosted: DateTime.now().subtract(const Duration(days: 7, hours: 4)),
       postedBy: 'School Clinic & Red Cross',
+      venue: 'School Clinic',
       eventDate: DateTime(2026, 10, 22, 9),
     ),
   ];
@@ -859,6 +1010,10 @@ class _HomeScreenState extends State<HomeScreen> {
   String _query = '';
   bool _searching = false;
   bool _savedOnly = false;
+
+  /// Which bottom tab is showing: 0 = the board, 1 = the events page.
+  int _tab = 0;
+
   final List<String> _filters = const [
     'All',
     'Event',
@@ -868,7 +1023,12 @@ class _HomeScreenState extends State<HomeScreen> {
     'General',
   ];
 
-  int get _savedCount => _announcements.where((a) => a.isSaved).length;
+  /// Notes still standing — temporary ones are dropped once their take-down
+  /// time passes, so the board never shows a stale temporary note.
+  List<Announcement> get _active =>
+      _announcements.where((a) => !a.isExpired()).toList();
+
+  int get _savedCount => _active.where((a) => a.isSaved).length;
 
   String get _emptyMessage {
     if (_query.trim().isNotEmpty) {
@@ -879,7 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Announcement> get _filteredAnnouncements {
-    Iterable<Announcement> list = _announcements;
+    Iterable<Announcement> list = _active;
     if (_selectedFilter != 'All') {
       list = list.where((a) => a.category == _selectedFilter);
     }
@@ -965,11 +1125,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _persistNotes();
   }
 
-  void _navigateToCreateAnnouncement({Announcement? initial}) async {
+  void _navigateToCreateAnnouncement(
+      {Announcement? initial, String? presetCategory}) async {
     final result = await Navigator.push<Announcement>(
       context,
       MaterialPageRoute(
-        builder: (context) => CreateAnnouncementScreen(initial: initial),
+        builder: (context) => CreateAnnouncementScreen(
+          initial: initial,
+          presetCategory: presetCategory,
+        ),
       ),
     );
     if (result == null) return;
@@ -1076,7 +1240,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_announcements.length} notes pinned \u00b7 $_savedCount saved \u00b7 ${boardDate(DateTime.now())}',
+              '${_active.length} notes pinned \u00b7 $_savedCount saved \u00b7 ${boardDate(DateTime.now())}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -1088,166 +1252,219 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: _savedOnly ? 'Show every note' : 'Show saved notes only',
-            onPressed: () => setState(() => _savedOnly = !_savedOnly),
-            icon: Icon(
-              _savedOnly ? Icons.bookmark : Icons.bookmark_border,
-              color: _savedOnly ? const Color(0xFFF3A712) : Palette.paper,
-            ),
-          ),
-          IconButton(
-            tooltip: _searching ? 'Close search' : 'Search notes',
-            onPressed: () => setState(() {
-              _searching = !_searching;
-              if (!_searching) _query = '';
-            }),
-            icon: Icon(_searching ? Icons.close : Icons.search),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          const Positioned.fill(
-            child: CustomPaint(painter: CorkboardPainter()),
-          ),
-          Column(
-            children: [
-              // Bunting hanging off the top of the board.
-              const SizedBox(
-                height: 40,
-                child: CustomPaint(
-                  size: Size(double.infinity, 40),
-                  painter: BuntingPainter(),
-                ),
-              ),
-              // Search slips down from the app bar.
-              if (_searching)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
-                  child: TextField(
-                    autofocus: true,
-                    onChanged: (value) => setState(() => _query = value),
-                    style: const TextStyle(color: Palette.ink, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Search title, details or who posted it',
-                      prefixIcon:
-                          const Icon(Icons.search, color: Palette.inkSoft),
-                      suffixIcon: _query.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.clear,
-                                  color: Palette.inkSoft),
-                              onPressed: () => setState(() => _query = ''),
-                            ),
-                      filled: true,
-                      fillColor: Palette.paper,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: Palette.ink.withValues(alpha: 0.25),
-                        ),
-                      ),
-                    ),
+        actions: _tab == 0
+            ? [
+                IconButton(
+                  tooltip:
+                      _savedOnly ? 'Show every note' : 'Show saved notes only',
+                  onPressed: () => setState(() => _savedOnly = !_savedOnly),
+                  icon: Icon(
+                    _savedOnly ? Icons.bookmark : Icons.bookmark_border,
+                    color: _savedOnly ? const Color(0xFFF3A712) : Palette.paper,
                   ),
                 ),
-              // Washi-tape filter tabs.
-              SizedBox(
-                height: 58,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  children: [
-                    for (var i = 0; i < _filters.length; i++)
-                      _TapeTab(
-                        key: ValueKey(_filters[i]),
-                        label: _filters[i],
-                        color: _filterColor(_filters[i]),
-                        selected: _selectedFilter == _filters[i],
-                        angle: i.isEven ? -0.035 : 0.03,
-                        onTap: () =>
-                            setState(() => _selectedFilter = _filters[i]),
-                      ),
-                  ],
+                IconButton(
+                  tooltip: _searching ? 'Close search' : 'Search notes',
+                  onPressed: () => setState(() {
+                    _searching = !_searching;
+                    if (!_searching) _query = '';
+                  }),
+                  icon: Icon(_searching ? Icons.close : Icons.search),
                 ),
-              ),
-              Expanded(
-                child: _filteredAnnouncements.isEmpty
-                    ? _EmptyBoard(message: _emptyMessage)
-                    : RefreshIndicator(
-                        color: Palette.stamp,
-                        backgroundColor: Palette.paper,
-                        onRefresh: () async {
-                          setState(() {});
-                        },
-                        child: ListView.builder(
-                          padding: const EdgeInsets.only(top: 8, bottom: 96),
-                          itemCount: _filteredAnnouncements.length,
-                          itemBuilder: (context, index) {
-                            final announcement = _filteredAnnouncements[index];
-                            return Dismissible(
-                              key: ValueKey(announcement.id),
-                              direction: DismissDirection.endToStart,
-                              confirmDismiss: (_) =>
-                                  _confirmDelete(announcement),
-                              onDismissed: (_) =>
-                                  _deleteAnnouncement(announcement),
-                              background: Container(
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.only(right: 34),
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 9),
-                                decoration: BoxDecoration(
-                                  color: Palette.stamp,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.delete_outline,
-                                        color: Colors.white),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'UNPIN',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+              ]
+            : null,
+      ),
+      body: _tab == 0
+          ? Stack(
+              children: [
+                const Positioned.fill(
+                  child: CustomPaint(painter: CorkboardPainter()),
+                ),
+                Column(
+                  children: [
+                    // Bunting hanging off the top of the board.
+                    const SizedBox(
+                      height: 40,
+                      child: CustomPaint(
+                        size: Size(double.infinity, 40),
+                        painter: BuntingPainter(),
+                      ),
+                    ),
+                    // Search slips down from the app bar.
+                    if (_searching)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+                        child: TextField(
+                          autofocus: true,
+                          onChanged: (value) => setState(() => _query = value),
+                          style:
+                              const TextStyle(color: Palette.ink, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'Search title, details or who posted it',
+                            prefixIcon: const Icon(Icons.search,
+                                color: Palette.inkSoft),
+                            suffixIcon: _query.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.clear,
+                                        color: Palette.inkSoft),
+                                    onPressed: () =>
+                                        setState(() => _query = ''),
+                                  ),
+                            filled: true,
+                            fillColor: Palette.paper,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Palette.ink.withValues(alpha: 0.25),
                               ),
-                              child: _AnnouncementCard(
-                                key: ValueKey(
-                                    '${_selectedFilter}_${announcement.id}'),
-                                announcement: announcement,
-                                index: index,
-                                onTap: () => _navigateToDetail(announcement),
-                              ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                       ),
+                    // Washi-tape filter tabs.
+                    SizedBox(
+                      height: 58,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        children: [
+                          for (var i = 0; i < _filters.length; i++)
+                            _TapeTab(
+                              key: ValueKey(_filters[i]),
+                              label: _filters[i],
+                              color: _filterColor(_filters[i]),
+                              selected: _selectedFilter == _filters[i],
+                              angle: i.isEven ? -0.035 : 0.03,
+                              onTap: () =>
+                                  setState(() => _selectedFilter = _filters[i]),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: _filteredAnnouncements.isEmpty
+                          ? _EmptyBoard(message: _emptyMessage)
+                          : RefreshIndicator(
+                              color: Palette.stamp,
+                              backgroundColor: Palette.paper,
+                              onRefresh: () async {
+                                setState(() {});
+                              },
+                              child: ListView.builder(
+                                padding:
+                                    const EdgeInsets.only(top: 8, bottom: 96),
+                                itemCount: _filteredAnnouncements.length,
+                                itemBuilder: (context, index) {
+                                  final announcement =
+                                      _filteredAnnouncements[index];
+                                  return Dismissible(
+                                    key: ValueKey(announcement.id),
+                                    direction: DismissDirection.endToStart,
+                                    confirmDismiss: (_) =>
+                                        _confirmDelete(announcement),
+                                    onDismissed: (_) =>
+                                        _deleteAnnouncement(announcement),
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 34),
+                                      margin: const EdgeInsets.symmetric(
+                                          horizontal: 20, vertical: 9),
+                                      decoration: BoxDecoration(
+                                        color: Palette.stamp,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.delete_outline,
+                                              color: Colors.white),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'UNPIN',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 1.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    child: _AnnouncementCard(
+                                      key: ValueKey(
+                                          '${_selectedFilter}_${announcement.id}'),
+                                      announcement: announcement,
+                                      index: index,
+                                      onTap: () =>
+                                          _navigateToDetail(announcement),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : EventsScreen(
+              announcements: _active,
+              onChanged: _updateAnnouncement,
+              onDeleted: _deleteAnnouncement,
+            ),
+      floatingActionButton: _tab == 0
+          ? FloatingActionButton.extended(
+              onPressed: _navigateToCreateAnnouncement,
+              backgroundColor: Palette.stamp,
+              foregroundColor: Colors.white,
+              elevation: 6,
+              icon: const Icon(Icons.push_pin_outlined),
+              label: const Text(
+                'Pin a note',
+                style:
+                    TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4),
               ),
-            ],
+            )
+          : FloatingActionButton.extended(
+              onPressed: () =>
+                  _navigateToCreateAnnouncement(presetCategory: 'Event'),
+              backgroundColor: Palette.stamp,
+              foregroundColor: Colors.white,
+              elevation: 6,
+              icon: const Icon(Icons.event_available),
+              label: const Text(
+                'Add an event',
+                style:
+                    TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4),
+              ),
+            ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _tab,
+        onTap: (index) => setState(() => _tab = index),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Palette.walnut,
+        selectedItemColor: Palette.gold,
+        unselectedItemColor: Palette.paper.withValues(alpha: 0.62),
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_outlined),
+            activeIcon: Icon(Icons.campaign),
+            label: 'Board',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.event_outlined),
+            activeIcon: Icon(Icons.event),
+            label: 'Events',
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToCreateAnnouncement,
-        backgroundColor: Palette.stamp,
-        foregroundColor: Colors.white,
-        elevation: 6,
-        icon: const Icon(Icons.push_pin_outlined),
-        label: const Text(
-          'Pin a note',
-          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4),
-        ),
       ),
     );
   }
@@ -1526,9 +1743,37 @@ class _AnnouncementCard extends StatelessWidget {
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (announcement.venue != null) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.place_outlined,
+                                  size: 15,
+                                  color: Palette.inkSoft,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    announcement.venue!,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Palette.ink,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           if (announcement.eventDate != null) ...[
                             const SizedBox(height: 14),
                             _ScheduleStrip(date: announcement.eventDate!),
+                          ],
+                          if (announcement.isTemporary) ...[
+                            const SizedBox(height: 10),
+                            ExpiryPill(expiresAt: announcement.expiresAt!),
                           ],
                           const SizedBox(height: 16),
                           Container(
@@ -1598,13 +1843,358 @@ class _AnnouncementCard extends StatelessWidget {
   }
 }
 
+// ==================== UPCOMING EVENTS SCREEN ====================
+
+/// The campus diary: every dated note, soonest first, with its venue.
+class EventsScreen extends StatefulWidget {
+  const EventsScreen({
+    super.key,
+    required this.announcements,
+    required this.onChanged,
+    required this.onDeleted,
+  });
+
+  /// The whole board — this page picks out the dated notes.
+  final List<Announcement> announcements;
+
+  /// Keeps the board in sync with edits made from a note's sheet.
+  final ValueChanged<Announcement> onChanged;
+
+  /// Takes a note off the board.
+  final void Function(Announcement announcement) onDeleted;
+
+  @override
+  State<EventsScreen> createState() => _EventsScreenState();
+}
+
+class _EventsScreenState extends State<EventsScreen> {
+  /// false = what is coming up, true = what has already happened.
+  bool _showPast = false;
+
+  /// Dated notes only, split by side of today and sorted by date.
+  List<Announcement> get _events {
+    final now = DateTime.now();
+    final dated = widget.announcements
+        .where((a) => a.eventDate != null && !a.isExpired());
+
+    final list = _showPast
+        ? dated.where((a) => a.eventDate!.isBefore(now))
+        : dated.where((a) => !a.eventDate!.isBefore(now));
+
+    return list.toList()
+      ..sort((a, b) => _showPast
+          ? b.eventDate!.compareTo(a.eventDate!)
+          : a.eventDate!.compareTo(b.eventDate!));
+  }
+
+  void _open(Announcement announcement) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AnnouncementDetailScreen(
+          announcement: announcement,
+          onChanged: widget.onChanged,
+          onDeleted: () => widget.onDeleted(announcement),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final events = _events;
+
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: CustomPaint(painter: CorkboardPainter()),
+        ),
+        Column(
+          children: [
+            // Tape tabs, same cut as the board's category tabs.
+            SizedBox(
+              height: 58,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                children: [
+                  _TapeTab(
+                    key: const ValueKey('events-upcoming'),
+                    label: 'Upcoming',
+                    color: Palette.gold,
+                    selected: !_showPast,
+                    angle: -0.035,
+                    onTap: () => setState(() => _showPast = false),
+                  ),
+                  _TapeTab(
+                    key: const ValueKey('events-past'),
+                    label: 'Past',
+                    color: const Color(0xFF7E5A9B),
+                    selected: _showPast,
+                    angle: 0.03,
+                    onTap: () => setState(() => _showPast = true),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+              child: Text(
+                _showPast
+                    ? '${events.length} already happened \u00b7 latest first'
+                    : '${events.length} coming up \u00b7 soonest first',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                  color: Palette.paper.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+            Expanded(
+              child: events.isEmpty
+                  ? _EmptyBoard(
+                      message: _showPast
+                          ? 'Nothing has happened on the diary yet.'
+                          : 'No upcoming events — pin one with the button below.')
+                  : RefreshIndicator(
+                      color: Palette.stamp,
+                      backgroundColor: Palette.paper,
+                      onRefresh: () async => setState(() {}),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(top: 8, bottom: 96),
+                        itemCount: events.length,
+                        itemBuilder: (context, index) {
+                          final announcement = events[index];
+                          return _EventCard(
+                            key: ValueKey('event_${announcement.id}'),
+                            announcement: announcement,
+                            index: index,
+                            onTap: () => _open(announcement),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A dated note as a diary card: calendar chip, venue, date strip.
+class _EventCard extends StatelessWidget {
+  const _EventCard({
+    super.key,
+    required this.announcement,
+    required this.index,
+    required this.onTap,
+  });
+
+  final Announcement announcement;
+  final int index;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = categoryStyle(announcement.category);
+    final when = announcement.eventDate!;
+    final chip = eventChip(when);
+
+    // Same staggered drop-in as the board's notes.
+    final delay = (index * 0.09).clamp(0.0, 0.55);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 650),
+        curve: Interval(delay, 1, curve: Curves.easeOutCubic),
+        builder: (context, t, child) => Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 26 * (1 - t)),
+            child: child,
+          ),
+        ),
+        child: PhysicalShape(
+          clipper: const DeckleClipper(),
+          elevation: 6,
+          shadowColor: Colors.black.withValues(alpha: 0.45),
+          color: Palette.paper,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              highlightColor: style.color.withValues(alpha: 0.12),
+              splashColor: style.color.withValues(alpha: 0.2),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Calendar chip: month, day, weekday.
+                        Container(
+                          width: 58,
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: style.color,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.22),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                chip.month,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.6,
+                                ),
+                              ),
+                              Text(
+                                chip.day,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 23,
+                                  height: 1.1,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                chip.weekday,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                announcement.title,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w800,
+                                  color: Palette.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.place_outlined,
+                                    size: 15,
+                                    color: Palette.inkSoft,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      announcement.venue ??
+                                          'Venue to be announced',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Palette.inkSoft,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: Palette.inkSoft,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _ScheduleStrip(date: when),
+                    if (announcement.isTemporary) ...[
+                      const SizedBox(height: 10),
+                      ExpiryPill(expiresAt: announcement.expiresAt!),
+                    ],
+                    const SizedBox(height: 14),
+                    Container(
+                        height: 1, color: Palette.ink.withValues(alpha: 0.12)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Palette.inkSoft,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            announcement.postedBy,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Palette.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          timeAgo(announcement.datePosted),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Palette.inkSoft,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ==================== CREATE ANNOUNCEMENT SCREEN ====================
 
 class CreateAnnouncementScreen extends StatefulWidget {
-  const CreateAnnouncementScreen({super.key, this.initial});
+  const CreateAnnouncementScreen({
+    super.key,
+    this.initial,
+    this.presetCategory,
+  });
 
   /// When set, the form opens pre-filled so the note can be edited.
   final Announcement? initial;
+
+  /// Category to start with — the events page passes "Event".
+  final String? presetCategory;
 
   @override
   State<CreateAnnouncementScreen> createState() =>
@@ -1616,10 +2206,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _postedByController = TextEditingController();
+  final _venueController = TextEditingController();
   String _selectedCategory = 'General';
   bool _isUrgent = false;
   DateTime? _eventDate;
   TimeOfDay _eventTime = const TimeOfDay(hour: 9, minute: 0);
+
+  /// Temporary notes take themselves down; [_tempSpan] says when.
+  bool _temporary = false;
+  String _tempSpan = temporarySpans.first;
 
   final List<String> _categories = const [
     'General',
@@ -1632,13 +2227,23 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedCategory = widget.presetCategory ?? 'General';
     final note = widget.initial;
     if (note == null) return;
     _titleController.text = note.title;
     _descriptionController.text = note.description;
     _postedByController.text = note.postedBy;
+    _venueController.text = note.venue ?? '';
     _selectedCategory = note.category;
     _isUrgent = note.isUrgent;
+    _temporary = note.isTemporary;
+    if (note.isTemporary) {
+      _tempSpan = spanForExpiry(
+        note.expiresAt!,
+        event: note.eventDate,
+        now: note.datePosted,
+      );
+    }
     final event = note.eventDate;
     if (event != null) {
       _eventDate = DateTime(event.year, event.month, event.day);
@@ -1651,7 +2256,33 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _postedByController.dispose();
+    _venueController.dispose();
     super.dispose();
+  }
+
+  /// The date and time picked above, as one stamp (or null).
+  DateTime? _eventDateTime() => _eventDate == null
+      ? null
+      : DateTime(
+          _eventDate!.year,
+          _eventDate!.month,
+          _eventDate!.day,
+          _eventTime.hour,
+          _eventTime.minute,
+        );
+
+  /// When this note should take itself down, or null to keep it for good.
+  DateTime? _buildExpiry() => _temporary
+      ? expiryFor(_tempSpan, event: _eventDateTime(), now: DateTime.now())
+      : null;
+
+  /// Plain-English preview of when the note would take itself down.
+  String _temporaryNote() {
+    final event = _eventDateTime();
+    if (_tempSpan == temporarySpans.first && event == null) {
+      return 'Pick a date above so it can go down after the event.';
+    }
+    return 'Takes itself down ${formatDate(expiryFor(_tempSpan, event: event))}';
   }
 
   Future<void> _pickEventDate() async {
@@ -1679,39 +2310,48 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   }
 
   void _submitAnnouncement() {
-    if (_formKey.currentState!.validate()) {
-      final existing = widget.initial;
-      final announcement = Announcement(
-        id: existing?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        category: _selectedCategory,
-        datePosted: existing?.datePosted ?? DateTime.now(),
-        postedBy: _postedByController.text.trim(),
-        isUrgent: _isUrgent,
-        isSaved: existing?.isSaved ?? false,
-        eventDate: _eventDate == null
-            ? null
-            : DateTime(
-                _eventDate!.year,
-                _eventDate!.month,
-                _eventDate!.day,
-                _eventTime.hour,
-                _eventTime.minute,
-              ),
-      );
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context, announcement);
-      messenger.showSnackBar(
-        SnackBar(
+    if (!_formKey.currentState!.validate()) return;
+
+    final venue = _venueController.text.trim();
+    final event = _eventDateTime();
+
+    // "After the event" needs an event to hang on.
+    if (_temporary && _tempSpan == temporarySpans.first && event == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           content: Text(
-            existing == null
-                ? 'Your note is pinned to the board!'
-                : 'Changes saved!',
+            'Pick a date above \u2014 or choose how long the note should live.',
           ),
         ),
       );
+      return;
     }
+
+    final existing = widget.initial;
+    final announcement = Announcement(
+      id: existing?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      category: _selectedCategory,
+      datePosted: existing?.datePosted ?? DateTime.now(),
+      postedBy: _postedByController.text.trim(),
+      isUrgent: _isUrgent,
+      isSaved: existing?.isSaved ?? false,
+      eventDate: event,
+      venue: venue.isEmpty ? null : venue,
+      expiresAt: _buildExpiry(),
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context, announcement);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          existing == null
+              ? 'Your note is pinned to the board!'
+              : 'Changes saved!',
+        ),
+      ),
+    );
   }
 
   @override
@@ -1816,6 +2456,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _venueController,
+                            decoration: const InputDecoration(
+                              labelText: 'Venue',
+                              hintText: 'Main Gymnasium, Room 204...',
+                              prefixIcon: Icon(Icons.place_outlined),
+                            ),
+                          ),
                           const SizedBox(height: 20),
                           const Text(
                             'WHEN DOES IT HAPPEN?',
@@ -1905,6 +2554,117 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                                 ],
                               ),
                             ),
+                          const SizedBox(height: 18),
+                          const Text(
+                            'TEMPORARY NOTE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Optional \u2014 it takes itself down when the time is up',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Palette.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: _temporary
+                                  ? const Color(0xFFD0872B)
+                                      .withValues(alpha: 0.08)
+                                  : Palette.ink.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _temporary
+                                    ? const Color(0xFFD0872B)
+                                        .withValues(alpha: 0.5)
+                                    : Palette.ink.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                title: const Text(
+                                  'Take it down automatically',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Palette.ink,
+                                  ),
+                                ),
+                                subtitle: const Text(
+                                  'The note clears itself off the board',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Palette.inkSoft,
+                                  ),
+                                ),
+                                value: _temporary,
+                                activeThumbColor: const Color(0xFFD0872B),
+                                onChanged: (value) =>
+                                    setState(() => _temporary = value),
+                              ),
+                            ),
+                          ),
+                          if (_temporary) ...[
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final span in temporarySpans)
+                                  ChoiceChip(
+                                    label: Text(span),
+                                    selected: _tempSpan == span,
+                                    selectedColor:
+                                        Palette.stamp.withValues(alpha: 0.16),
+                                    labelStyle: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: _tempSpan == span
+                                          ? Palette.stamp
+                                          : Palette.ink,
+                                    ),
+                                    side: BorderSide(
+                                      color: _tempSpan == span
+                                          ? Palette.stamp
+                                          : Palette.ink.withValues(alpha: 0.25),
+                                    ),
+                                    onSelected: (_) =>
+                                        setState(() => _tempSpan = span),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.hourglass_top,
+                                  size: 15,
+                                  color: Color(0xFFD0872B),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _temporaryNote(),
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Palette.ink,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 20),
                           Container(
                             decoration: BoxDecoration(
@@ -2174,6 +2934,18 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                           const SizedBox(height: 8),
                           _ScheduleStrip(date: announcement.eventDate!),
                           const SizedBox(height: 16),
+                        ],
+                        if (announcement.venue != null) ...[
+                          const SizedBox(height: 14),
+                          _MetaRow(
+                            icon: Icons.place_outlined,
+                            label: 'VENUE',
+                            value: announcement.venue!,
+                          ),
+                        ],
+                        if (announcement.isTemporary) ...[
+                          const SizedBox(height: 14),
+                          ExpiryPill(expiresAt: announcement.expiresAt!),
                         ],
                         _MetaRow(
                           icon: Icons.person_outline,

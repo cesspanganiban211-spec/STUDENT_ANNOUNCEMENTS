@@ -63,4 +63,14 @@ void main() {
       matchesGoldenFile('goldens/compose.png'),
     );
   });
+
+  testWidgets('golden: events', (WidgetTester tester) async {
+    await pumpAt(tester, const StudentAnnouncementsApp());
+    await tester.tap(find.text('Events'));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/events.png'),
+    );
+  });
 }

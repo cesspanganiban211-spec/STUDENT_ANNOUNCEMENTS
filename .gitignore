@@ -47,3 +47,6 @@ app.*.map.json
 /android/app/build/
 /android/.gradle/
 /android/local.properties
+
+# Golden test failure feedback (regenerated whenever a golden fails)
+/test/failures/
