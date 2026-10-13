@@ -1,11 +1,11 @@
 {
-    "name": "Student Announcements",
-    "short_name": "Announcements",
+    "name": "CHCC Student Announcements",
+    "short_name": "CHCC",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#1565C0",
-    "description": "A Flutter app for managing and viewing student announcements.",
+    "background_color": "#33281C",
+    "theme_color": "#C1402C",
+    "description": "The CHCC campus bulletin board: class notices, exams, events and deadlines, pinned in one place.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

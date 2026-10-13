@@ -22,7 +22,8 @@ void main() {
       (WidgetTester tester) async {
     await pumpBoard(tester);
 
-    expect(find.text('THE CAMPUS BULLETIN'), findsOneWidget);
+    expect(find.text('STUDENT ANNOUNCEMENTS'), findsOneWidget);
+    expect(find.text('CHCC'), findsOneWidget); // the crest seal
     expect(find.text('Midterm Examination Schedule'), findsOneWidget);
     expect(find.text('Pin a note'), findsOneWidget);
 

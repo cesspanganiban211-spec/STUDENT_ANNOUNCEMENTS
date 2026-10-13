@@ -31,7 +31,7 @@ class StudentAnnouncementsApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Student Announcements',
+      title: 'CHCC Student Announcements',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -962,24 +962,83 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Palette.cork,
       appBar: AppBar(
+        // The CHCC crest: a hand-stamped school seal pinned to the header.
+        leading: Center(
+          child: Transform.rotate(
+            angle: -0.06,
+            child: Container(
+              width: 38,
+              height: 38,
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Palette.paper,
+                border: Border.all(color: Palette.stamp, width: 2),
+              ),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Palette.stamp.withValues(alpha: 0.55),
+                    width: 1,
+                  ),
+                ),
+                child: const Text(
+                  'CHCC',
+                  style: TextStyle(
+                    fontFamily: 'serif',
+                    fontSize: 10,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                    color: Palette.stamp,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
         title: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'THE CAMPUS BULLETIN',
+              'STUDENT ANNOUNCEMENTS',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 3,
+                letterSpacing: 2.4,
                 color: Palette.paper,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
+            // Painted swash under the wordmark.
+            Container(
+              height: 3,
+              width: 82,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2A33B),
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(
               '${_announcements.length} notes pinned \u00b7 $_savedCount saved \u00b7 ${boardDate(DateTime.now())}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w500,
-                letterSpacing: 0.6,
+                letterSpacing: 0.5,
                 color: Palette.paper.withValues(alpha: 0.72),
               ),
             ),

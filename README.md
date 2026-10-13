@@ -1,4 +1,4 @@
-# The Campus Bulletin Board
+# CHCC Student Announcements
 
 A student announcements app that looks like the corkboard in the hallway — notes
 are pinned to a textured board, taped down with coloured washi tape, and stamped
