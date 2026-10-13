@@ -23,7 +23,11 @@ void main() {
     await pumpBoard(tester);
 
     expect(find.text('STUDENT ANNOUNCEMENTS'), findsOneWidget);
-    expect(find.text('CHCC'), findsOneWidget); // the crest seal
+    expect(find.byKey(const ValueKey('chcc-crest')), findsOneWidget); // seal
+    expect(
+      find.text('CONCEPCION HOLY CROSS COLLEGE'),
+      findsOneWidget,
+    );
     expect(find.text('Midterm Examination Schedule'), findsOneWidget);
     expect(find.text('Pin a note'), findsOneWidget);
 

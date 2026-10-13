@@ -975,39 +975,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Palette.cork,
       appBar: AppBar(
-        // The CHCC crest: a hand-stamped school seal pinned to the header.
+        // The official seal of Concepcion Holy Cross College, Inc.
         leading: Center(
-          child: Transform.rotate(
-            angle: -0.06,
-            child: Container(
-              width: 38,
-              height: 38,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Palette.paper,
-                border: Border.all(color: Palette.stamp, width: 2),
-              ),
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Palette.stamp.withValues(alpha: 0.55),
-                    width: 1,
-                  ),
+          child: Container(
+            key: const ValueKey('chcc-crest'),
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: Palette.paper, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
                 ),
-                child: const Text(
-                  'CHCC',
-                  style: TextStyle(
-                    fontFamily: 'serif',
-                    fontSize: 10,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.2,
-                    color: Palette.stamp,
-                  ),
-                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/chcc_seal.jpg',
+                width: 42,
+                height: 42,
+                fit: BoxFit.cover,
               ),
             ),
           ),
@@ -1015,6 +1006,18 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              'CONCEPCION HOLY CROSS COLLEGE',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.4,
+                color: Palette.paper.withValues(alpha: 0.78),
+              ),
+            ),
+            const SizedBox(height: 2),
             const Text(
               'STUDENT ANNOUNCEMENTS',
               maxLines: 1,
@@ -1370,8 +1373,14 @@ class _EmptyBoard extends StatelessWidget {
           ),
           child: Column(
             children: [
-              const Icon(Icons.push_pin_outlined,
-                  size: 40, color: Palette.stamp),
+              ClipOval(
+                child: Image.asset(
+                  'assets/chcc_seal.jpg',
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.cover,
+                ),
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Nothing pinned here',

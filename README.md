@@ -2,8 +2,8 @@
 
 A student announcements app that looks like the campus notice board at night —
 cream paper notes are pinned to a deep navy board, taped down with coloured
-washi tape, and stamped red when they are urgent. A hand-stamped **CHCC crest**
-seals the header next to the wordmark.
+washi tape, and stamped red when they are urgent. The **official seal of
+Concepcion Holy Cross College, Inc.** sits in the header beside the wordmark.
 
 ## Screens
 
@@ -41,6 +41,9 @@ seals the header next to the wordmark.
   shadow that follows the tear.
 - `SquigglePainter` draws the wavy underline on the detail sheet.
 - Notes sit at a tiny deterministic tilt (`tiltFor`) so the board looks hand-pinned.
+- The **CHCC seal** (`assets/chcc_seal.jpg`, Concepcion Holy Cross College, Inc.)
+  is the header crest, the empty-board mark, the favicon / PWA icon, and the
+  Android launcher icon.
 
 Everything is drawn with Flutter's own painting API, so the app adds no assets
 and no extra packages.

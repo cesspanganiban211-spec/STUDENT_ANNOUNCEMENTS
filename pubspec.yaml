@@ -1,7 +1,7 @@
 name: student_announcements
-description: A Flutter app for managing and viewing student announcements.
+description: CHCC Student Announcements - the campus bulletin board for Concepcion Holy Cross College, Inc.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,3 +19,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/
