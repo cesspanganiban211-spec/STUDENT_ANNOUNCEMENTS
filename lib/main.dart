@@ -1453,28 +1453,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4),
               ),
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _tab,
-        onTap: (index) => setState(() => _tab = index),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Palette.walnut,
-        selectedItemColor: Palette.gold,
-        unselectedItemColor: Palette.paper.withValues(alpha: 0.62),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_outlined),
-            activeIcon: Icon(Icons.campaign),
-            label: 'Board',
+      // SafeArea keeps the bar above the Android system navigation bar —
+      // without it the Board/Events tabs hide behind the phone's own nav.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Palette.walnut,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_outlined),
-            activeIcon: Icon(Icons.event),
-            label: 'Events',
+          child: BottomNavigationBar(
+            currentIndex: _tab,
+            onTap: (index) => setState(() => _tab = index),
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Palette.walnut,
+            selectedItemColor: Palette.gold,
+            unselectedItemColor: Palette.paper.withValues(alpha: 0.62),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.campaign_outlined),
+                activeIcon: Icon(Icons.campaign),
+                label: 'Board',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.event_outlined),
+                activeIcon: Icon(Icons.event),
+                label: 'Events',
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
