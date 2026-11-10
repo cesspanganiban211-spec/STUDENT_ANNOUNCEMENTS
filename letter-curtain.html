@@ -22,7 +22,7 @@
     height: 100vh;
     object-fit: cover;
     image-rendering: auto;
-    transform: scaleX(-1); /* flip กล้องให้ซ้าย-ขวาตรงกับมุมมองบนจอ */
+    transform: scaleX(-1); /* flip the camera left-right to match the on-screen view */
     opacity: 1;
     z-index: 0;
     pointer-events: none;
@@ -72,56 +72,56 @@ const statusEl = document.getElementById("status");
 
 // ===== Look / performance =====
 const FONT_SIZE = 16;
-const FONT_WEIGHT = 800; // หนาขึ้น แต่ไม่หนักเครื่องเท่า 900 + วาดซ้ำหลายรอบ
+const FONT_WEIGHT = 800; // bolder than default, but lighter on the machine than 900 + drawn several times over
 const FONT = `${FONT_WEIGHT} ${FONT_SIZE}px "Courier New", monospace`;
 
 // ===== Performance tuning =====
-// ลด DPR ช่วยมากบนจอ Retina / 4K เพราะ canvas จะไม่ต้อง render pixel เยอะเกินไป
+// Lowering the DPR helps a lot on Retina / 4K screens, because the canvas then doesn't have to render too many pixels
 const MAX_DPR = 1.35;
 const TARGET_FPS = 60;
-const HAND_TRACKING_FPS = 18; // ส่งภาพให้ MediaPipe แค่ ~18 fps เพื่อไม่ให้หน่วง
+const HAND_TRACKING_FPS = 18; // send frames to MediaPipe at only ~18 fps so it doesn't lag
 
 // ===== Camera quality =====
-// แสดงภาพกล้องแบบ HD/Full HD แต่ลดขนาดเฉพาะภาพที่ส่งเข้า MediaPipe
-// ทำให้ภาพบนจอชัดขึ้น โดยยังไม่หนักเครื่องเกินไป
+// Show the camera feed in HD/Full HD, but downscale only the image sent to MediaPipe
+// This keeps the picture on screen sharp without being too heavy
 const CAMERA_WIDTH = 1920;
 const CAMERA_HEIGHT = 1080;
 const CAMERA_FPS = 30;
 const TRACKING_WIDTH = 640;
 const TRACKING_HEIGHT = 360;
 
-// เปลี่ยนอักษรแบบกระจายเฟรม ไม่เปลี่ยนทุกตัวทุกเฟรม ลดงานสุ่มและวาด
+// Change letters spread across frames instead of every character every frame, cutting down random and draw work
 const RANDOM_CHANGE_SPEED = 0.055;
 const ACTIVE_RANDOM_BOOST = 0.018;
-const STRAND_SPACING = 42;      // เพิ่มระยะเส้น ลดจำนวนเส้นลงเล็กน้อย
+const STRAND_SPACING = 42;      // wider spacing, so there are slightly fewer strands
 const MIN_SEGMENTS = 9;
 const MAX_SEGMENTS = 13;
 const TOP_GAP = 0;
 
 // ===== Verlet curtain physics =====
 const GRAVITY = 0.125;
-const AIR_DRAG = 0.912;         // เพิ่ม inertia นิด ๆ ให้แหวกแล้วพริ้วค้างสั้น ๆ
-const BASE_STIFFNESS = 0.82;    // ลดความแข็งลง ให้ไหลตาม cursor มากขึ้น
-const TIP_STIFFNESS = 0.46;     // ปลายตามแรงปัดมากขึ้น
-const CONSTRAINT_ITERS = 3;     // ลดรอบ constraint เพื่อให้ลื่นขึ้น
-const WIND_NOISE = 0.0008;      // ลดลม เพื่อไม่ให้ปลายเหินขึ้นเอง
+const AIR_DRAG = 0.912;         // a little more inertia so parted strands flutter briefly before settling
+const BASE_STIFFNESS = 0.82;    // less stiffness so it flows with the cursor more
+const TIP_STIFFNESS = 0.46;     // the tip follows the swipe more
+const CONSTRAINT_ITERS = 3;     // fewer constraint iterations to stay smooth
+const WIND_NOISE = 0.0008;      // less wind so the tips don't lift on their own
 
 // ===== Finger swipe force =====
-const SWIPE_RADIUS_X = 126;     // กว้างขึ้น เพื่อให้เหมือนแหวกม่าน ไม่ใช่โดนแค่จุดเดียว
+const SWIPE_RADIUS_X = 126;     // wider, so it feels like parting a curtain instead of hitting a single spot
 const SWIPE_RADIUS_Y = 66;
 const SWIPE_FORCE = 0.43;
-const IDLE_PUSH = 0.002;        // อยู่เฉย ๆ แทบไม่ผลัก
-const RETURN_FORCE = 0.026;     // ลดแรงดึงกลับ ให้แหวกค้างหลังนิ้วผ่านนิดหนึ่ง
-const TIP_RETURN_FACTOR = 0.62; // ปลายล่างโดนดึงกลับน้อยกว่าเดิม
+const IDLE_PUSH = 0.002;        // almost no push while idle
+const RETURN_FORCE = 0.026;     // weaker return force, so the opening lingers a little after the finger passes
+const TIP_RETURN_FACTOR = 0.62; // the bottom tip is pulled back less than before
 const MAX_FINGER_SPEED = 20;
-const MAX_UP_SPEED = 2.15;       // จำกัดความเร็วที่ปลายเส้นสะบัดขึ้น
-const TIP_DOWN_BIAS = 0.115;     // น้ำหนักถ่วงปลายล่างให้ตกลงเหมือนผ้าม่าน
-const MAX_SEGMENT_ANGLE = 0.95;  // จำกัดมุมจากแนวดิ่ง ประมาณ 54 องศา
+const MAX_UP_SPEED = 2.15;       // cap on how fast a strand tip can flick upward
+const TIP_DOWN_BIAS = 0.115;     // extra downward pull on the bottom tip so it falls like a curtain
+const MAX_SEGMENT_ANGLE = 0.95;  // limit the angle from vertical to about 54 degrees
 
 // ===== Curtain wake / leave-open effect =====
-const WAKE_FORCE = 0.085;       // จำแรงปัดไว้เล็กน้อย ให้แหวกทิ้งไว้หลังนิ้วผ่าน
-const WAKE_DECAY = 0.915;       // ยิ่งใกล้ 1 ยิ่งค้างนาน
-const WAKE_MAX = 10.5;          // กันแหวกแรงเกินจนดูยุ่ง
+const WAKE_FORCE = 0.085;       // remember a little of the swipe so the parting stays open after the finger passes
+const WAKE_DECAY = 0.915;       // the closer to 1, the longer it lingers
+const WAKE_MAX = 10.5;          // keeps the opening from getting so strong it looks messy
 
 const POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,;:{}()=+-*/&%$#@!?";
 const TIP_INDEXES = [4, 8, 12, 16, 20];
@@ -168,9 +168,9 @@ class Point {
     this.baseY = y;
     this.pinned = pinned;
 
-    // rotation inertia ของตัวอักษร
+    // rotation inertia of the character
     this.rotation = 0;
-    // เก็บแรงปัดค้างไว้ชั่วคราว เพื่อให้เกิดฟีลแหวกผ้าม่าน
+    // briefly store the swipe force to create the parted-curtain feel
     this.wakeX = 0;
     this.wakeY = 0;
   }
@@ -187,7 +187,7 @@ class Strand {
     for (let i = 0; i <= segmentCount; i++) {
       const y = anchorY + i * segmentLength;
       const x = anchorX + rand(-1.5, 1.5) * Math.min(i, 3);
-      this.points.push(new Point(x, y, i === 0)); // ยึดเฉพาะจุดบนสุด
+      this.points.push(new Point(x, y, i === 0)); // pin only the top point
       this.chars.push(randomChar());
     }
   }
@@ -209,7 +209,7 @@ function init() {
     const x = startX + i * STRAND_SPACING + rand(-4, 4);
     const segs = Math.floor(rand(MIN_SEGMENTS, MAX_SEGMENTS + 1));
 
-    // เส้นยาวไม่เท่ากัน ปลายล่างจะไม่เรียงเป็นขอบแข็ง
+    // strands have unequal lengths so the bottom edge doesn't line up as a hard border
     const targetLength = h * rand(0.7, 0.9);
     const segLen = targetLength / segs;
 
@@ -227,7 +227,7 @@ function applySwipeForce(point, influencer) {
   const dx = point.x - influencer.x;
   const dy = point.y - influencer.y;
 
-  // วงรีแทนวงกลม เพื่อให้รู้สึกเป็นการปัดผ่านมากกว่า bubble
+  // an ellipse instead of a circle, so it feels like a swipe rather than a bubble
   const nx = dx / SWIPE_RADIUS_X;
   const ny = dy / SWIPE_RADIUS_Y;
   const dist = nx * nx + ny * ny;
@@ -240,20 +240,20 @@ function applySwipeForce(point, influencer) {
   const hasSwipe = speed > 0.45;
 
   if (hasSwipe) {
-    // แรงหลัก = ทิศทางนิ้วลากผ่าน เหมือนลมปัดผ้าม่าน
+    // main force = the direction the finger dragged, like wind pushing a curtain
     const swipeX = (influencer.vx || 0) * falloff;
     point.x += swipeX * SWIPE_FORCE;
 
-    // เก็บแรงปัดไว้เล็กน้อย ทำให้หลังนิ้วผ่าน เส้นยังแหวกค้างก่อนค่อยคืน
+    // keep a little of the swipe so the strands stay parted after the finger passes, then ease back
     point.wakeX += swipeX * WAKE_FORCE;
     point.wakeX = Math.max(-WAKE_MAX, Math.min(WAKE_MAX, point.wakeX));
 
-    // ให้ตามนิ้วในแนวนอนได้ดี แต่แนวขึ้นไม่แรงจนปลายชี้ฟ้า
+    // follows the finger well horizontally, but the upward push isn't strong enough to point the tips at the sky
     const swipeY = Math.max(influencer.vy || 0, (influencer.vy || 0) * 0.32);
     point.y += swipeY * falloff * SWIPE_FORCE * 0.16;
     point.wakeY += Math.max(0, swipeY) * falloff * WAKE_FORCE * 0.035;
   } else {
-    // อยู่เฉย ๆ ไม่ต้องผลักแรง เพื่อให้ภาพนิ่งกว่า
+    // idle, so no need to push hard; keeps the picture steadier
     point.x += dx * falloff * IDLE_PUSH;
   }
 }
@@ -272,8 +272,8 @@ function simulate() {
       const p = pts[i];
 
       if (p.pinned) {
-        // จุดบนสุดขยับนิด ๆ เหมือนรางผ้าม่านมีชีวิต
-        p.x = p.baseX; // ยึดรางบนให้นิ่ง ไม่ส่ายเอง
+        // the top point shifts a little, like a living curtain rail
+        p.x = p.baseX; // hold the top rail steady so it doesn't sway on its own
         p.y = p.baseY;
         p.oldX = p.x;
         p.oldY = p.y;
@@ -284,7 +284,7 @@ function simulate() {
       const vx = (p.x - p.oldX) * AIR_DRAG;
       let vy = (p.y - p.oldY) * AIR_DRAG;
 
-      // กันปลายล่างสะบัด/ชี้ขึ้นแรงเกินไป แต่ยังยอมให้พริ้วได้
+      // stop the bottom tip from flicking/pointing up too hard, while still letting it flutter
       const upLimit = MAX_UP_SPEED * (1 - depth * 0.34);
       if (vy < -upLimit) vy = -upLimit;
 
@@ -294,15 +294,15 @@ function simulate() {
       p.x += vx;
       p.y += vy + GRAVITY + TIP_DOWN_BIAS * depth * depth;
 
-      // ดึงกลับเข้าแนวรางเดิมให้เร็วขึ้นหลังนิ้วผ่าน
-      // ด้านบนคืนไวกว่า ด้านล่างยังปล่อยให้พริ้วอยู่
+      // pull back toward the original rail line faster after the finger passes
+      // the top recovers sooner; the bottom keeps fluttering
       const returnStrength = RETURN_FORCE * (1 - depth * TIP_RETURN_FACTOR);
       p.x += (p.baseX - p.x) * returnStrength;
 
-      // ลมเบา ๆ เฉพาะช่วงปลาย เพิ่มความพริ้วเล็กน้อย
+      // a light breeze only near the tips, adding a little flutter
       p.x += Math.sin(time * 1.05 + strand.phase + i * 0.37) * WIND_NOISE * depth * depth * 4;
 
-      // แรงค้างจากการปัด ให้เหมือนม่านถูกแหวกแล้วค่อย ๆ คืนตัว
+      // leftover swipe force, so the curtain parts open and slowly settles back
       p.x += p.wakeX * (0.35 + depth * 0.75);
       p.y += p.wakeY * depth * 0.18;
       p.wakeX *= WAKE_DECAY;
@@ -314,7 +314,7 @@ function simulate() {
         applySwipeForce(p, inf);
       }
 
-      // กันหลุดจอแบบนุ่ม ๆ
+      // soft clamp so nothing leaves the screen
       if (p.x < -80) p.x = -80;
       if (p.x > w + 80) p.x = w + 80;
       if (p.y > h + 140) p.y = h + 140;
@@ -331,7 +331,7 @@ function simulate() {
         const dist = Math.hypot(dx, dy) || 0.0001;
         const diff = (dist - strand.segmentLength) / dist;
 
-        // ด้านล่างหลวมกว่า ไม่ถูกยึดแข็ง
+        // the bottom is looser and not held rigidly
         const depth = i / (pts.length - 2);
         const stiffness = BASE_STIFFNESS + (TIP_STIFFNESS - BASE_STIFFNESS) * depth;
 
@@ -349,7 +349,7 @@ function simulate() {
         }
       }
 
-      // Angular constraint: กันปลายเส้นพับขึ้น/ชี้ขึ้นเกินจริง
+      // Angular constraint: stop the strand tip from folding/pointing up too far
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1];
         const b = pts[i];
@@ -358,10 +358,10 @@ function simulate() {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const len = Math.hypot(dx, dy) || 0.0001;
-        const angleFromDown = Math.atan2(dx, dy); // 0 = ชี้ลงตรง ๆ
+        const angleFromDown = Math.atan2(dx, dy); // 0 = pointing straight down
         const clamped = Math.max(-MAX_SEGMENT_ANGLE, Math.min(MAX_SEGMENT_ANGLE, angleFromDown));
 
-        // ถ้า segment กำลังชี้ขึ้น ให้บังคับกลับลงมากขึ้น
+        // if the segment is pointing up, force it back down more strongly
         if (dy < len * 0.18 || clamped !== angleFromDown) {
           const depth = i / (pts.length - 1);
           const keep = 0.42 + depth * 0.28;
@@ -379,7 +379,7 @@ function simulate() {
 function drawStrand(strand) {
   const pts = strand.points;
 
-  // เส้นโค้งผ้าม่าน
+  // curtain curve
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
 
@@ -401,7 +401,7 @@ function drawStrand(strand) {
   ctx.lineWidth = 1.7;
   ctx.stroke();
 
-  // ตัวอักษร
+  // letters
   ctx.font = FONT;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -413,7 +413,7 @@ function drawStrand(strand) {
 
     const targetAngle = Math.atan2(next.y - prev.y, next.x - prev.x) - Math.PI / 2;
 
-    // rotation lag ทำให้บิดพริ้วเหมือนผ้า
+    // rotation lag makes it twist and flutter like cloth
     let delta = targetAngle - p.rotation;
     while (delta > Math.PI) delta -= Math.PI * 2;
     while (delta < -Math.PI) delta += Math.PI * 2;
@@ -423,7 +423,7 @@ function drawStrand(strand) {
     const glow = Math.min(1, speed / 24);
     const depth = i / (pts.length - 1);
 
-    // วิบวับเบา ๆ เฉพาะตอนเส้นขยับ เพื่อให้ดู clean ไม่รก
+    // a light sparkle only while the strand moves, so it stays clean and uncluttered
     if (
       sparkles.length < SPARKLE_MAX &&
       speed > SPARKLE_SPEED_THRESHOLD &&
@@ -439,7 +439,7 @@ function drawStrand(strand) {
       });
     }
 
-    // เปลี่ยนอักษรแบบไม่ต้องสุ่มทุกตัวทุกเฟรม: ยังดู random ตลอด แต่เบากว่าเยอะ
+    // change letters without re-randomizing every character each frame: still looks random, but far cheaper
     const randomRate = Math.min(0.42, RANDOM_CHANGE_SPEED + speed * ACTIVE_RANDOM_BOOST);
     const stagger = (frameId + i + Math.floor(p.baseX)) % 2 === 0;
     if (stagger && Math.random() < randomRate) {
@@ -452,7 +452,7 @@ function drawStrand(strand) {
 
     ctx.fillStyle = `rgba(255,255,255,${0.42 + glow * 0.34 - depth * 0.08})`;
 
-    // shadowBlur ต่อ text ทุกตัวกินเครื่องมาก จึงเปิดเฉพาะจุดที่กำลังขยับแรงจริง ๆ
+    // shadowBlur per text glyph is expensive, so enable it only for points really moving fast
     if (speed > 6) {
       ctx.shadowBlur = 5;
       ctx.shadowColor = "rgba(255,255,255,0.38)";
@@ -460,7 +460,7 @@ function drawStrand(strand) {
 
     ctx.fillText(strand.chars[i], 0, 0);
 
-    // วาดซ้ำเฉพาะตอนขยับ เพื่อให้หนาแบบประหยัดกว่าเดิม
+    // redraw only while moving, giving the bold look more cheaply than before
     if (speed > 3) {
       ctx.fillText(strand.chars[i], 0.28, 0);
     }
@@ -468,7 +468,7 @@ function drawStrand(strand) {
     ctx.restore();
   }
 
-  // จุดยึดด้านบนเล็กมาก
+  // very small top anchor point
   ctx.beginPath();
   ctx.arc(pts[0].x, pts[0].y, 1.4, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(255,255,255,0.42)";
@@ -497,13 +497,13 @@ function drawSparkles() {
     const alpha = Math.sin(s.life * Math.PI) * 0.42;
     const size = s.size * (0.65 + s.life * 0.35);
 
-    // จุดกลาง
+    // center dot
     ctx.beginPath();
     ctx.arc(s.x, s.y, size * 0.42, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255,255,255,${alpha})`;
     ctx.fill();
 
-    // กากบาทเล็ก ๆ แบบ premium sparkle
+    // small cross like a premium sparkle
     ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.7})`;
     ctx.lineWidth = 0.55;
     ctx.beginPath();
@@ -518,7 +518,7 @@ function drawSparkles() {
 }
 
 function drawFingerDebug() {
-  // ซ่อนวงกลม force แล้ว เหลือแค่จุดนิ้วเล็ก ๆ
+  // the force circle is hidden now; only a small finger dot remains
   if (!usingCamera || fingerTips.length === 0) return;
 
   for (const f of fingerTips) {
@@ -534,7 +534,7 @@ function draw() {
   const h = H / DPR;
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, w, h); // ไม่มีพื้นหลัง ให้เห็นวิดีโอกล้องจริง
+  ctx.clearRect(0, 0, w, h); // no background, so the real camera video shows through
 
   for (const strand of strands) {
     drawStrand(strand);
@@ -545,7 +545,7 @@ function draw() {
 }
 
 function loop(now = 0) {
-  // กันบาง browser ยิงเฟรมถี่ผิดปกติ และใช้ frameId กระจายงาน random
+  // guards against browsers firing frames at odd rates, and spreads random work across frameId
   if (!lastFrameTime || now - lastFrameTime >= 1000 / TARGET_FPS) {
     frameId++;
     lastFrameTime = now;
@@ -561,7 +561,7 @@ async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        // ขอภาพกล้องคอมให้ชัดขึ้นก่อน ถ้ากล้องไม่รองรับ browser จะลดลงให้อัตโนมัติ
+        // ask for a sharper webcam image first; if the camera doesn't support it, the browser lowers it automatically
         facingMode: { ideal: "user" },
         width: { ideal: CAMERA_WIDTH },
         height: { ideal: CAMERA_HEIGHT },
@@ -573,14 +573,14 @@ async function startCamera() {
     vid.srcObject = stream;
     await vid.play();
 
-    // เตรียม canvas เล็กไว้ให้ MediaPipe ประมวลผล เพื่อให้วิดีโอจริงยังคมแต่ tracking ไม่หนัก
+    // a small canvas for MediaPipe to process, so the real video stays sharp while tracking stays light
     trackingCanvas.width = TRACKING_WIDTH;
     trackingCanvas.height = TRACKING_HEIGHT;
 
     const videoTrack = stream.getVideoTracks()[0];
     const cameraSettings = videoTrack?.getSettings?.() || {};
 
-    // บังคับ flip ภาพกล้องให้ถูกฝั่งบนจอ
+    // force the camera image to flip to the correct side on screen
     vid.style.transform = "scaleX(-1)";
 
     usingCamera = true;
@@ -630,8 +630,8 @@ async function startCamera() {
       statusEl.textContent = `tracking ${hands.length} hand${hands.length > 1 ? "s" : ""} ✦`;
     });
 
-    // ส่งภาพย่อเข้า MediaPipe เอง ไม่ต้องใช้ Camera Utils
-    // ใช้ stream HD ที่เปิดไว้ แล้วส่งภาพย่อเข้า MediaPipe เอง
+    // send the downscaled frame to MediaPipe ourselves, no Camera Utils needed
+    // use the already-open HD stream, then downscale it before sending to MediaPipe
     const processHandsFrame = async () => {
       if (!usingCamera || !handsInstance) return;
 
