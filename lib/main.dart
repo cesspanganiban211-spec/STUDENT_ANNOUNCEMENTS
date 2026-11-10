@@ -5,6 +5,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'animated_lily.dart';
+import 'ascii_lily_bouquet.dart';
+
 void main() {
   runApp(StudentAnnouncementsApp(home: initialScreen()));
 }
@@ -37,6 +40,10 @@ Widget? initialScreen() {
       );
     case 'compose':
       return const CreateAnnouncementScreen();
+    case 'lily':
+      return const AsciiLilyScreen();
+    case 'vector-lily':
+      return const LilyDemoScreen();
     default:
       return null;
   }
